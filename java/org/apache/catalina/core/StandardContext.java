@@ -141,6 +141,17 @@ import org.apache.tomcat.util.security.PrivilegedSetTccl;
  *
  * @author Craig R. McClanahan
  * @author Remy Maucherat
+ *
+ *
+    1. 创建工作目录，比如$CATALINA_HOME\work\Catalina\localhost\examples；实例化 ContextServlet，
+       应用程序拿到的是 ApplicationContext的外观模式
+    2. 实例化 WebResourceRoot，默认实现类是 StandardRoot，用于读取 webapp 的文件资源
+    3. 实例化 Loader 对象，Loader 是 tomcat 对于 ClassLoader 的封装，用于支持在运行期间热加载 class
+    4. 发出 CONFIGURE_START_EVENT 事件，ContextConfig 会处理该事件，主要目的是从 webapp 中读取 servlet 相关的 Listener、Servlet、Filter 等
+    5. 实例化 Sesssion 管理器，默认使用 StandardManager
+    6. 调用 listenerStart，实例化 servlet 相关的各种 Listener，并且调用ServletContextListener
+    7. 处理 Filter
+    8. 加载 Servlet
  */
 public class StandardContext extends ContainerBase
         implements Context, NotificationEmitter {
@@ -191,6 +202,7 @@ public class StandardContext extends ContainerBase
 
     /**
      * Lifecycle provider.
+     * 根据 class 实例化对象，比如 Listener、Filter、Servlet 实例对象
      */
     private InstanceManager instanceManager = null;
 
@@ -220,6 +232,8 @@ public class StandardContext extends ContainerBase
      * The list of instantiated application event listener objects. Note that
      * SCIs and other code may use the pluggability APIs to add listener
      * instances directly to this list before the application starts.
+     *
+     * SessionListener、ContextListner 等集合
      */
     private List<Object> applicationEventListenersList = new CopyOnWriteArrayList<>();
 
@@ -290,6 +304,8 @@ public class StandardContext extends ContainerBase
 
     /**
      * The ServletContext implementation associated with this Context.
+     *
+     *  即ServletContext上下文
      */
     protected ApplicationContext context = null;
 
@@ -366,11 +382,14 @@ public class StandardContext extends ContainerBase
     private String docBase = null;
 
 
+    //错误码与错误页的映射
     private final ErrorPageSupport errorPageSupport = new ErrorPageSupport();
 
     /**
      * The set of filter configurations (and associated filter instances) we
      * have initialized, keyed by filter name.
+     *
+     * filer 名字与 FilterConfig 的映射关系
      */
     private Map<String, ApplicationFilterConfig> filterConfigs = new HashMap<>();
 
@@ -398,8 +417,12 @@ public class StandardContext extends ContainerBase
 
     /**
      * The Loader implementation with which this Container is associated.
+     * 用于加载class等资源
      */
     private Loader loader = null;
+    /**
+     * 用于对manager的读写操作
+     */
     private final ReadWriteLock loaderLock = new ReentrantReadWriteLock();
 
 
@@ -411,8 +434,12 @@ public class StandardContext extends ContainerBase
 
     /**
      * The Manager implementation with which this Container is associated.
+     * Session管理器
      */
     protected Manager manager = null;
+    /**
+     * 用于对loader的读写操作
+     */
     private final ReadWriteLock managerLock = new ReentrantReadWriteLock();
 
 
@@ -525,6 +552,7 @@ public class StandardContext extends ContainerBase
     /**
      * The servlet mappings for this web application, keyed by
      * matching pattern.
+     * url与Servlet名字的映射关系
      */
     private Map<String, String> servletMappings = new HashMap<>();
 
@@ -690,6 +718,7 @@ public class StandardContext extends ContainerBase
     /**
      * The Jar scanner to use to search for Jars that might contain
      * configuration information such as TLDs or web-fragment.xml files.
+     * 用于扫描jar包资源
      */
     private JarScanner jarScanner = null;
 
@@ -802,6 +831,9 @@ public class StandardContext extends ContainerBase
 
     private final Object namingToken = new Object();
 
+    /**
+     * cookies处理器，默认使用Rfc6265CookieProcessor
+     */
     private CookieProcessor cookieProcessor;
 
     private boolean validateClientProvidedNewSessionId = true;
@@ -5029,6 +5061,10 @@ public class StandardContext extends ContainerBase
                 fireLifecycleEvent(Lifecycle.CONFIGURE_START_EVENT, null);
 
                 // Start our child containers, if not already started
+
+                // ContextConfig 把 Wrapper 子容器添加到 StandardContext 容器中之后，便会挨个启动 Wrapper 子容器。
+                // 但是实际上，由于 StandardContext至 ContainerBase，在添加子容器的时候，便会调用 start 方法启动
+                // Wrapper，关于 Wrapper 的启动在下文进行详细分析
                 for (Container child : findChildren()) {
                     if (!child.getState().isAvailable()) {
                         child.start();

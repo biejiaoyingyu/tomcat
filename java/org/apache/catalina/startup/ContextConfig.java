@@ -117,6 +117,13 @@ import org.xml.sax.SAXParseException;
  *
  * @author Craig R. McClanahan
  */
+
+/**
+ * ContextConfig 它是一个 LifycycleListener，它在 Context 启动过程中是承担了一个非常重要的角色。
+ * StandardContext 会发出 CONFIGURE_START_EVENT 事件，而 ContextConfig 会处理该事件，主要目的
+ * 是通过 web.xml 或者 Servlet3.0 的注解配置，读取 Servlet 相关的配置信息，比如Filter、Servlet、
+ * Listener 等，其核心逻辑在 ContextConfig#webConfig() 方法中实现
+ */
 public class ContextConfig implements LifecycleListener {
 
     private static final Log log = LogFactory.getLog(ContextConfig.class);
@@ -1067,6 +1074,8 @@ public class ContextConfig implements LifecycleListener {
      * where there is duplicate configuration, the most specific level wins. ie
      * an application's web.xml takes precedence over the host level or global
      * web.xml file.
+     *
+     * 这个很重要，要考试的
      */
     protected void webConfig() {
         /*
@@ -1094,6 +1103,11 @@ public class ContextConfig implements LifecycleListener {
          *   those in JARs excluded from an absolute ordering) need to be
          *   scanned to check if they match.
          */
+
+        /**
+         * 首先，是通过 WebXmlParser 对 web.xml 进行解析，如果存在 web.xml 文件，
+         * 则会把文件中定义的 Servlet、Filter、Listener 注册到 WebXml 实例中
+         */
         WebXmlParser webXmlParser = new WebXmlParser(context.getXmlNamespaceAware(),
                 context.getXmlValidation(), context.getXmlBlockExternal());
 
@@ -1102,7 +1116,7 @@ public class ContextConfig implements LifecycleListener {
 
         Set<WebXml> tomcatWebXml = new HashSet<>();
         tomcatWebXml.add(getTomcatWebXmlFragment(webXmlParser));
-
+        // 创建 WebXml实例，并解析 web.xml 文件
         WebXml webXml = createWebXml();
 
         // Parse context level web.xml
@@ -1123,11 +1137,17 @@ public class ContextConfig implements LifecycleListener {
 
         // Step 2. Order the fragments.
         Set<WebXml> orderedFragments = null;
-        orderedFragments =
-                WebXml.orderWebFragments(webXml, fragments, sContext);
+        orderedFragments = WebXml.orderWebFragments(webXml, fragments, sContext);
 
         // Step 3. Look for ServletContainerInitializer implementations
         if (ok) {
+            // 接下来，会处理 javax.servlet.ServletContainerInitializer，把对象实例保存到 ContextConfig 的
+            // Map 中，待Wrapper子容器添加到StandardContext子容器中之后，再把 ServletContainerInitializer
+            // 加入 ServletContext 中。ServletContainerInitializer 是 servlet3.0 提供的一个 SPI，可以通过
+            // HandlesTypes 筛选出相关的 servlet 类，并可以对 ServletContext 进行额外处理，下面是一个自定义的
+            // ServletContainerInitializer，实现了 ServletContainerInitializer 接口，和 jdk 提供的其它 SPI
+            // 一样，需要在 META-INF/services/javax.servlet.ServletContainerInitializer 文件中指定该类名
+            // net.dwade.tomcat.CustomServletContainerInitializer
             processServletContainerInitializers();
         }
 
@@ -1146,8 +1166,8 @@ public class ContextConfig implements LifecycleListener {
                     if ("META-INF".equals(webResource.getName())) {
                         continue;
                     }
-                    processAnnotationsWebResource(webResource, webXml,
-                            webXml.isMetadataComplete(), javaClassCache);
+                    //进入这里
+                    processAnnotationsWebResource(webResource, webXml, webXml.isMetadataComplete(), javaClassCache);
                 }
             }
 
@@ -1214,6 +1234,11 @@ public class ContextConfig implements LifecycleListener {
                     resourceJars.add(fragment);
                 }
             }
+
+            //tomcat 还会加载 WEB-INF/classes/META-INF/resources/、
+            // WEB-INF/lib/xxx.jar/META-INF/resources/ 的静态资源，
+            // 这一块的作用暂时不清楚，
+
             processResourceJARs(resourceJars);
             // See also StandardContext.resourcesStart() for
             // WEB-INF/classes/META-INF/resources configuration
@@ -1221,16 +1246,17 @@ public class ContextConfig implements LifecycleListener {
 
         // Step 11. Apply the ServletContainerInitializer config to the
         // context
+
+        // 在初始化 Servlet、Listener 之前，便会先调用 ServletContainerInitializer，进行额外的初始化处理。
+        // 注意：ServletContainerInitializer 需要的是Class 对象，而不是具体的实例对象，这个时候 servlet
+        // 相关的 Listener 并没有被实例化，因此不会产生矛盾
+
         if (ok) {
-            for (Map.Entry<ServletContainerInitializer,
-                    Set<Class<?>>> entry :
-                        initializerClassMap.entrySet()) {
+            for (Map.Entry<ServletContainerInitializer, Set<Class<?>>> entry : initializerClassMap.entrySet()) {
                 if (entry.getValue().isEmpty()) {
-                    context.addServletContainerInitializer(
-                            entry.getKey(), null);
+                    context.addServletContainerInitializer(entry.getKey(), null);
                 } else {
-                    context.addServletContainerInitializer(
-                            entry.getKey(), entry.getValue());
+                    context.addServletContainerInitializer(entry.getKey(), entry.getValue());
                 }
             }
         }
@@ -1980,6 +2006,17 @@ public class ContextConfig implements LifecycleListener {
         }
     }
 
+    /**
+     * tomcat 使用自己的工具类 ClassParser 通过对字节码文件进行解析，获取其注解，
+     * 并把 WebServlet、WebFilter、WebListener 注解的类添加到 WebXml 实例中，
+     * 统一由它对 ServletContext 进行参数配置。tomcat 对字节码的处理是由
+     * org.apache.tomcat.util.bcel 包完成的，bcel 即 Byte Code Engineering Library，
+     * 其实现比较繁锁，需要对字节码结构有一定的了解.
+     * @param webResource
+     * @param fragment
+     * @param handlesTypesOnly
+     * @param javaClassCache
+     */
     protected void processAnnotationsWebResource(WebResource webResource,
             WebXml fragment, boolean handlesTypesOnly,
             Map<String,JavaClassCacheEntry> javaClassCache) {
@@ -2001,6 +2038,10 @@ public class ContextConfig implements LifecycleListener {
         } else if (webResource.isFile() &&
                 webResource.getName().endsWith(".class")) {
             try (InputStream is = webResource.getInputStream()) {
+                //如果没有 web.xml 文件，tomcat 会先扫描 WEB-INF/classes 目录下面的 class 文件，然后扫描
+                // WEB-INF/lib 目录下面的 jar 包，解析字节码读取 servlet 相关的注解配置类，这里不得不吐槽下
+                // serlvet3.0 注解，对 servlet 注解的处理相当重量级。tomcat 不会预先把该 class 加载到 jvm 中，
+                // 而是通过解析字节码文件，获取对应类的一些信息，比如注解、实现的接口等，
                 processAnnotationsStream(is, fragment, handlesTypesOnly, javaClassCache);
             } catch (IOException e) {
                 log.error(sm.getString("contextConfig.inputStreamWebResource",

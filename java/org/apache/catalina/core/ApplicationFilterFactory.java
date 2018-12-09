@@ -65,6 +65,7 @@ public final class ApplicationFilterFactory {
                 // Security: Do not recycle
                 filterChain = new ApplicationFilterChain();
             } else {
+                // //    （1）
                 filterChain = (ApplicationFilterChain) req.getFilterChain();
                 if (filterChain == null) {
                     filterChain = new ApplicationFilterChain();
@@ -75,6 +76,19 @@ public final class ApplicationFilterFactory {
             // Request dispatcher in use
             filterChain = new ApplicationFilterChain();
         }
+        // //    （2）
+        // 标注(1)和(2)创建出过滤器链并将请求与之对应的Servlet与之关联，通过StandardContext
+        // 得到web.xml中配置的所有<filter-mapping>对应的实体FilterMap数组，该数组中的数据来
+        // 源逆序调用为StandardContext
+        // -> addFilterMap(FilterMap)
+        // -> WebXml.configureContext(Context)
+        // -> ContextConfig.webConfig()
+        // -> ContextConfig.configureStart()
+        // -> ContextConfig检测到Lifecycle.CONFIGURE_START_EVENT事件，
+        // 具体的流程分析可以参考Tomcat架构中各个组件及组件间关系（二）。
+        // 还有一点需要注意的是，每一个过滤器都存在一个类型为DispatcherType的调度类型dispatcher，
+        // 表示该过滤器对哪一种请求类型进行拦截，共有FORWORD、INCLUDE、REQUEST、ASYNC、ERROR五种类型，
+        // 默认为REQUEST
 
         filterChain.setServlet(servlet);
         filterChain.setServletSupportsAsync(wrapper.isAsyncSupported());
@@ -100,6 +114,13 @@ public final class ApplicationFilterFactory {
         String servletName = wrapper.getName();
 
         // Add the relevant path-mapped filters to this filter chain
+        //    （3）
+        //标注(3)遍历所有的过滤器数组，进行两轮匹配判断，第一轮matchDispatcher(FilterMap, DispatcherType)
+        // 判断是否filter配置的调度类型在上述五种类型之中；第二轮matchFiltersURL(FilterMap, String)判断请
+        // 求URL是否命中一个filter，如若存在一个匹配过滤器，那么根据对应filter名称从StandardContext中的成员
+        // 变量HashMap<String, ApplicationFilterConfig> filterConfigs中得到对应的实例ApplicationFilterConfig。
+        // 之前的文章曾经分析过在解析web.xml时，过滤器对应的对象为FilterDef，但在StandardContext启动时中间有
+        // 一步是启动所有的过滤器，此时会将所有的FilterDef转成ApplicationFilterConfig放入该Map中
         for (int i = 0; i < filterMaps.length; i++) {
             if (!matchDispatcher(filterMaps[i] ,dispatcher)) {
                 continue;
@@ -116,6 +137,14 @@ public final class ApplicationFilterFactory {
         }
 
         // Add filters that match on servlet name second
+        //    （4）
+        //必须先回忆一下<filter-mapping>配置的方式，要拦截请求其实有两种方式：
+        // 1.配置<url-pattern>过滤请求路径；
+        // 2.配置<servlet-name>过滤特定Servlet，那代码中的两个for循环就对应两种方式了。
+        // 最后将请求路径或者请求对应Servlet的过滤器通过addFilter(filterConfig)加入到
+        // ApplicationFilterChain中成员变量filters数组中
+
+
         for (int i = 0; i < filterMaps.length; i++) {
             if (!matchDispatcher(filterMaps[i] ,dispatcher)) {
                 continue;

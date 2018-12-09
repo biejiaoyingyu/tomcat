@@ -86,6 +86,7 @@ public final class StandardServer extends LifecycleMBeanBase implements Server {
 
         if (isUseNaming()) {
             namingContextListener = new NamingContextListener();
+            //额外添加了一个监听器
             addLifecycleListener(namingContextListener);
         } else {
             namingContextListener = null;
@@ -557,6 +558,8 @@ public final class StandardServer extends LifecycleMBeanBase implements Server {
      * Wait until a proper shutdown command is received, then return.
      * This keeps the main thread alive - the thread pool listening for http
      * connections is daemon threads.
+     *
+     * “一直等待到接收到一个正确的关闭命令后该方法将会返回。这样会使主线程一直存活——监听http连接的线程池是守护线程”。
      */
     @Override
     public void await() {
@@ -664,6 +667,8 @@ public final class StandardServer extends LifecycleMBeanBase implements Server {
                 }
 
                 // Match against our command string
+                //当发现监听到的连接的输入流中的内容与默认配置的值匹配（该值默认为字符串SHUTDOWN）则跳出循环，
+                // 该方法返回。否则该方法会一直循环执行下去
                 boolean match = command.toString().equals(shutdown);
                 if (match) {
                     log.info(sm.getString("standardServer.shutdownViaPort"));
@@ -919,21 +924,34 @@ public final class StandardServer extends LifecycleMBeanBase implements Server {
      * @exception LifecycleException if this component detects a fatal error
      *  that prevents this component from being used
      */
+    /**
+     * 先是由LifecycleBase统一发出STARTING_PREP事件，StandardServer额外还会发出CONFIGURE_START_EVENT、STARTING事件，
+     * 用于通知LifecycleListener在启动前做一些准备工作，比如NamingContextListener会处理CONFIGURE_START_EVENT事件，
+     * 实例化tomcat相关的上下文，以及ContextResource资源
+     *
+     */
     @Override
     protected void startInternal() throws LifecycleException {
 
+
+        // 它调用了父类org.apache.catalina.util.LifecycleBase里的fireLifecycleEvent方法，
+        // 这里的CONFIGURE_START_EVENT就是本文最开始Lifecycle接口中定义的常量，这里表示发布
+        // 了一个start配置事件。
         fireLifecycleEvent(CONFIGURE_START_EVENT, null);
         setState(LifecycleState.STARTING);
-
+        //然后，启动内部的NamingResourcesImpl实例，这个类封装了各种各样的数据，
+        //比如ContextEnvironment、ContextResource、Container等等，它用于Resource资源的初始化，
+        //以及为webapp应用提供相关的数据资源，比如 JNDI 数据源(对应ContextResource)
         globalNamingResources.start();
 
         // Start our defined Services
+        //接着，启动Service组件
         synchronized (servicesLock) {
             for (int i = 0; i < services.length; i++) {
                 services[i].start();
             }
         }
-
+        //最后由LifecycleBase发出STARTED事件，完成start
         if (periodicEventDelay > 0) {
             monitorFuture = getUtilityExecutor().scheduleWithFixedDelay(
                     new Runnable() {
@@ -1003,6 +1021,8 @@ public final class StandardServer extends LifecycleMBeanBase implements Server {
     /**
      * Invoke a pre-startup initialization. This is used to allow connectors
      * to bind to restricted ports under Unix operating environments.
+     *
+     * catalina初始化调用到这里
      */
     @Override
     protected void initInternal() throws LifecycleException {
@@ -1017,6 +1037,7 @@ public final class StandardServer extends LifecycleMBeanBase implements Server {
         // Note although the cache is global, if there are multiple Servers
         // present in the JVM (may happen when embedding) then the same cache
         // will be registered under multiple names
+
         onameStringCache = register(new StringCache(), "type=StringCache");
 
         // Register the MBeanFactory
@@ -1056,6 +1077,8 @@ public final class StandardServer extends LifecycleMBeanBase implements Server {
             }
         }
         // Initialize our defined Services
+
+        //这里将循环调用Server类里内置的Service数组的init方法。
         for (int i = 0; i < services.length; i++) {
             services[i].init();
         }

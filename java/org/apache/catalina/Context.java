@@ -58,6 +58,20 @@ import org.apache.tomcat.util.http.CookieProcessor;
  *
  * @author Craig R. McClanahan
  */
+
+/**
+ * 1.tomcat 如何支持 servlet3.0 的注解编程，比如对 javax.servlet.annotation.WebListener 注解的支持？
+ *
+ *   如果 tomcat 利用 ClassLoader 加载 webapp 下面所有的 class，从而分析 Class 对象的注解，这样子肯定会
+ *   导致很多问题，比如 MetaSpace 出现内存溢出，而且加载了很多不相干的类，我们知道 jvm 卸载 class 的条件非
+ *   常苛刻，这显然是不可取的。因此，tomcat 开发了字节码解析的工具类，位于 org.apache.tomcat.util.bcel，
+ *   bcel 即 ：Byte Code Engineering Library，专门用于解析 class 字节码，而不是像我们前面猜测的那样，
+ *   把类加载到 jvm 中
+ *
+ * 2.假如 webapp 目录有多个应用，使用的开源框架的 jar 版本不尽一致，tomcat 是怎样避免出现类冲突？
+ *   不同的 webapp 使用不同的 ClassLoader 实例加载 class，因此 webapp 内部加载的 class 是不同的，自然不会
+ *   出现类冲突，当然这里要排除 ClassLoader 的 parent 能够加载的 class。
+ */
 public interface Context extends Container, ContextBind {
 
 

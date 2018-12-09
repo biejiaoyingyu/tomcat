@@ -54,6 +54,11 @@ final class StandardEngineValve extends ValveBase {
      *
      * @exception IOException if an input/output error occurred
      * @exception ServletException if a servlet error occurred
+     *
+     * 由于参数request中已经保存了正确的“门牌号码”，自然能得到请求对应的虚拟主机StandardHost，
+     * 如果此时该对象为空自然有问题，将错误码塞入response中返回，最后责任链模式再次出现，调用
+     * StandardHost中管道的第一个阀门，默认情况下在server.xml中存在一个Valve，对应的实体为
+     * AccessLogValve，主要用来记录该虚拟主机的访问情况
      */
     @Override
     public final void invoke(Request request, Response response)

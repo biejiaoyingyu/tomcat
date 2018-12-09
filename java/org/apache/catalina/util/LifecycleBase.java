@@ -38,17 +38,22 @@ public abstract class LifecycleBase implements Lifecycle {
 
     private static final Log log = LogFactory.getLog(LifecycleBase.class);
 
+    //用来做日志信息参数化输出的，支持国际化
     private static final StringManager sm = StringManager.getManager(LifecycleBase.class);
 
 
     /**
      * The list of registered LifecycleListeners for event notifications.
+     *
+     * 不同的LifecycleBase子类，其内部的lifecycleListeners存放不同的LifecyListener，
+     * 比如Server和Service，它们是不同的Lifecycle实例，内部的lifecycleListeners也是不同
      */
     private final List<LifecycleListener> lifecycleListeners = new CopyOnWriteArrayList<>();
 
 
     /**
      * The current state of the source component.
+     * LifecycleBase的state初始值是LifecycleState.NEW，也存在并发修改的问题，用了volatile修饰
      */
     private volatile LifecycleState state = LifecycleState.NEW;
 
@@ -116,6 +121,11 @@ public abstract class LifecycleBase implements Lifecycle {
      *
      * @param type  Event type
      * @param data  Data associated with event.
+     *  这里通过传进来的两个参数构造一个LifecycleEvent对象，然后向注册到组件中的所有监听器发布
+     *  这个新构造的事件对象。
+     *
+     *  发出事件通知，遍历内部所有的LifecycleListener，并调用其lifecycleEvent
+     *
      */
     protected void fireLifecycleEvent(String type, Object data) {
         LifecycleEvent event = new LifecycleEvent(this, type, data);
@@ -125,6 +135,9 @@ public abstract class LifecycleBase implements Lifecycle {
     }
 
 
+    //Catalina初始化到这里
+    //考虑到有其它线程可能会改变StandardServer的state值，比如利用jmx执行init操作，
+    //因此要考虑并发问题，所以LifecycleBase#init()使用了synchronized锁，并且state是volatile修饰的。
     @Override
     public final synchronized void init() throws LifecycleException {
         if (!state.equals(LifecycleState.NEW)) {
@@ -133,6 +146,10 @@ public abstract class LifecycleBase implements Lifecycle {
 
         try {
             setStateInternal(LifecycleState.INITIALIZING, null, false);
+
+            // 发现这里面就做了一件事情，调用了一下接下来定义的抽象方法initInternal()（第21行）。
+            // 实际上看下LifecycleBase的实现类就会发现，所有的组件类几乎都继承了LifecycleBase类，
+            // 所以这些组件类一般只会有initInternal方法的定义。
             initInternal();
             setStateInternal(LifecycleState.INITIALIZED, null, false);
         } catch (Throwable t) {
@@ -152,10 +169,12 @@ public abstract class LifecycleBase implements Lifecycle {
 
     /**
      * {@inheritDoc}
+     * 生命周期的默认实现start()
      */
     @Override
     public final synchronized void start() throws LifecycleException {
 
+        //start功能的前置校验，这里如果发现start方法已经调用过了，将会记录日志并直接返回
         if (LifecycleState.STARTING_PREP.equals(state) || LifecycleState.STARTING.equals(state) ||
                 LifecycleState.STARTED.equals(state)) {
 
@@ -169,6 +188,8 @@ public abstract class LifecycleBase implements Lifecycle {
             return;
         }
 
+        //如果发现start放的需要做的前置方法没有调用完，或者调用出错，将会先调用这些前置方法。
+        // 完成init初始化
         if (state.equals(LifecycleState.NEW)) {
             init();
         } else if (state.equals(LifecycleState.FAILED)) {
@@ -179,17 +200,24 @@ public abstract class LifecycleBase implements Lifecycle {
         }
 
         try {
+            //  发出STARTING_PREP事件
             setStateInternal(LifecycleState.STARTING_PREP, null, false);
+
+            //将会调用本类中定义的抽象方法startInternal()
+            //模板模式
             startInternal();
             if (state.equals(LifecycleState.FAILED)) {
                 // This is a 'controlled' failure. The component put itself into the
                 // FAILED state so call stop() to complete the clean-up.
+                // 如果启动失败直接调用stop
                 stop();
             } else if (!state.equals(LifecycleState.STARTING)) {
                 // Shouldn't be necessary but acts as a check that sub-classes are
                 // doing what they are supposed to.
+                // 说明状态有误
                 invalidTransition(Lifecycle.AFTER_START_EVENT);
             } else {
+                // 成功完成start，发出STARTED事件
                 setStateInternal(LifecycleState.STARTED, null, false);
             }
         } catch (Throwable t) {
@@ -384,6 +412,14 @@ public abstract class LifecycleBase implements Lifecycle {
     }
 
 
+    /**
+     * 设置state值，并发出事件通知
+     * 先由LifecycleBase完成前期的校验、事件通知动作，再调用子类的方法完成自己的逻辑
+     * @param state
+     * @param data
+     * @param check
+     * @throws LifecycleException
+     */
     private synchronized void setStateInternal(LifecycleState state, Object data, boolean check)
             throws LifecycleException {
 
@@ -391,6 +427,7 @@ public abstract class LifecycleBase implements Lifecycle {
             log.debug(sm.getString("lifecycleBase.setState", this, state));
         }
 
+        // 校验state的正确性
         if (check) {
             // Must have been triggered by one of the abstract methods (assume
             // code in this class is correct)

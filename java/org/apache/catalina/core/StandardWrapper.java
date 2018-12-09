@@ -758,6 +758,7 @@ public class StandardWrapper extends ContainerBase
 
                             // Note: We don't know if the Servlet implements
                             // SingleThreadModel until we have loaded it.
+                            // 这里
                             instance = loadServlet();
                             newInstance = true;
                             if (!singleThreadModel) {
@@ -1006,7 +1007,8 @@ public class StandardWrapper extends ContainerBase
      * @throws ServletException for a Servlet load error
      */
     public synchronized Servlet loadServlet() throws ServletException {
-
+        //(1) 判断该Servlet是否为单例，默认Servlet是多例的，如果实现一个过时的SingleThreadModel
+        // 标记接口，Tomcat就会将标识singleThreadModel置为true，而这里就会直接返回；
         // Nothing to do if we already have an instance or an instance pool
         if (!singleThreadModel && (instance != null))
             return instance;
@@ -1028,6 +1030,7 @@ public class StandardWrapper extends ContainerBase
 
             InstanceManager instanceManager = ((StandardContext)getParent()).getInstanceManager();
             try {
+                //(2)根据解析的servletClass反射创建出用户自己配置的Servlet
                 servlet = (Servlet) instanceManager.newInstance(servletClass);
             } catch (ClassCastException e) {
                 unavailable(null);
@@ -1049,7 +1052,7 @@ public class StandardWrapper extends ContainerBase
                 throw new ServletException
                     (sm.getString("standardWrapper.instantiate", servletClass), e);
             }
-
+            //(3)是在Servlet3.0中引入的注解形式的文件上传方式校验
             if (multipartConfigElement == null) {
                 MultipartConfig annotation =
                         servlet.getClass().getAnnotation(MultipartConfig.class);
@@ -1074,7 +1077,9 @@ public class StandardWrapper extends ContainerBase
                 }
                 singleThreadModel = true;
             }
-
+            // (4)最终会调用Servlet的init(ServletConfig)，该方法GenericServlet.init(ServletConfig)，
+            // 内部又调用了一个无参的init()，当我们创建Servlet时可以覆写该方法，从而在第一次调用Servlet时
+            // 进行一些初始化的操作
             initServlet(servlet);
 
             fireContainerEvent("load", this);

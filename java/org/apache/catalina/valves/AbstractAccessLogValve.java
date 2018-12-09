@@ -653,6 +653,9 @@ public abstract class AbstractAccessLogValve extends ValveBase implements Access
      *
      * @exception IOException if an input/output error has occurred
      * @exception ServletException if a servlet error has occurred
+     *
+     * 调用StandardHost中管道的第一个阀门，
+     * 默认情况下在server.xml中存在一个Valve，对应的实体为AccessLogValve，主要用来记录该虚拟主机的访问情况
      */
     @Override
     public void invoke(Request request, Response response) throws IOException,
@@ -665,6 +668,11 @@ public abstract class AbstractAccessLogValve extends ValveBase implements Access
             // to be cached in the request.
             request.getAttribute(Globals.CERTIFICATES_ATTR);
         }
+        // 其中并没有做其他的操作，仅仅调用了管道中下一个阀门，下一个阀门依然不是基础阀门，
+        // 在StandardHost启动时Tomcat又为其添加了另一个“错误上报阀门”
+
+        // getErrorReportValveClass()返回该阀门对应全路径字符串
+        // org.apache.catalina.valves.ErrorReportValve，当管道中不存在对应名称的阀门就将该阀门加入管道中
         getNext().invoke(request, response);
     }
 

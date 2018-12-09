@@ -31,6 +31,14 @@ import org.apache.juli.logging.LogFactory;
 import org.apache.tomcat.util.modeler.Registry;
 import org.apache.tomcat.util.res.StringManager;
 
+
+/**
+ * 由前面的类图可知，LifecycleMBeanBase是LifecycleBase的直接子类，并且实现了JmxEnabled接口，很多组件都是直接继承它
+ * LifecycleMBeanBase完成了jmx注册的主要逻辑，重写了LifecycleBase的initInternal、destroyInternal方法，用于完成
+ * jmx的注册、注销动作
+ *
+ * 为了保证jmx的正常注册和注销，要求子类在重写initInternal、destroyInternal方法时，必须先调用super.initInternal()。
+ */
 public abstract class LifecycleMBeanBase extends LifecycleBase
         implements JmxEnabled {
 
@@ -41,8 +49,11 @@ public abstract class LifecycleMBeanBase extends LifecycleBase
 
 
     /* Cache components of the MBean registration. */
+    //jmx的域，默认使用Service的name，即"Catalina"
     private String domain = null;
+    //用于标识一个MBean的对象名称，也可以根据这个name来查找MBean
     private ObjectName oname = null;
+    //jmx的核心组件，提供代理端操作MBean的接口，提供了创建、注册、删除MBean的接口，它由MBeanServerFactory创建
     protected MBeanServer mserver = null;
 
     /**

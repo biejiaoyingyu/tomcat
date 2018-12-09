@@ -77,13 +77,14 @@ public class Connector extends LifecycleMBeanBase  {
 
 
     public Connector(String protocol) {
-        boolean aprConnector = AprLifecycleListener.isAprAvailable() &&
-                AprLifecycleListener.getUseAprConnector();
+        boolean aprConnector = AprLifecycleListener.isAprAvailable() && AprLifecycleListener.getUseAprConnector();
 
         if ("HTTP/1.1".equals(protocol) || protocol == null) {
+            //设置协议名称
             if (aprConnector) {
                 protocolHandlerClassName = "org.apache.coyote.http11.Http11AprProtocol";
             } else {
+                //一般回到这里
                 protocolHandlerClassName = "org.apache.coyote.http11.Http11NioProtocol";
             }
         } else if ("AJP/1.3".equals(protocol)) {
@@ -99,11 +100,11 @@ public class Connector extends LifecycleMBeanBase  {
         // Instantiate protocol handler
         ProtocolHandler p = null;
         try {
+            //反射创建协议对象
             Class<?> clazz = Class.forName(protocolHandlerClassName);
             p = (ProtocolHandler) clazz.getConstructor().newInstance();
         } catch (Exception e) {
-            log.error(sm.getString(
-                    "coyoteConnector.protocolHandlerInstantiationFailed"), e);
+            log.error(sm.getString("coyoteConnector.protocolHandlerInstantiationFailed"), e);
         } finally {
             this.protocolHandler = p;
         }
@@ -935,9 +936,13 @@ public class Connector extends LifecycleMBeanBase  {
     }
 
 
+    /**
+     * 初始化Connector
+     * @throws LifecycleException
+     */
     @Override
     protected void initInternal() throws LifecycleException {
-
+        // 注册jmx
         super.initInternal();
 
         if (protocolHandler == null) {
@@ -946,7 +951,9 @@ public class Connector extends LifecycleMBeanBase  {
         }
 
         // Initialize adapter
+        // 初始化Coyote适配器，这个适配器是用于Coyote的Request、Response与HttpServlet的Request、Response适配的
         adapter = new CoyoteAdapter(this);
+        // protocolHandler需要指定Adapter用于处理请求
         protocolHandler.setAdapter(adapter);
         if (service != null) {
             protocolHandler.setUtilityExecutor(service.getServer().getUtilityExecutor());
@@ -957,6 +964,7 @@ public class Connector extends LifecycleMBeanBase  {
             setParseBodyMethods(getParseBodyMethods());
         }
 
+        // apr支持
         if (protocolHandler.isAprRequired() && !AprLifecycleListener.isAprAvailable()) {
             throw new LifecycleException(sm.getString("coyoteConnector.protocolHandlerNoApr",
                     getProtocolHandlerClassName()));
@@ -973,6 +981,7 @@ public class Connector extends LifecycleMBeanBase  {
         }
 
         try {
+            // 初始化ProtocolHandler，这个init不是Lifecycle定义的init，而是ProtocolHandler接口的init
             protocolHandler.init();
         } catch (Exception e) {
             throw new LifecycleException(
@@ -998,6 +1007,7 @@ public class Connector extends LifecycleMBeanBase  {
         setState(LifecycleState.STARTING);
 
         try {
+            //将会调用实例变量protocolHandler的start方法
             protocolHandler.start();
         } catch (Exception e) {
             throw new LifecycleException(

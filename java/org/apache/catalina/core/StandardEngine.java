@@ -234,11 +234,28 @@ public class StandardEngine extends ContainerBase implements Engine {
     }
 
 
+    /**
+     * Realm(域)是用于对单个用户进行身份验证的底层安全领域的只读外观，并标识与这些用户相关联的安全角色。
+     * 域可以在任何容器级别上附加，但是通常只附加到Context，或者更高级别的容器。
+     * @throws LifecycleException
+     */
     @Override
     protected void initInternal() throws LifecycleException {
         // Ensure that a Realm is present before any attempt is made to start
         // one. This will create the default NullRealm if necessary.
         getRealm();
+
+        /**
+         *
+         * 由前面的类图可知，StandardEngine继承至ContainerBase，而ContainerBase重写了initInternal()方法，
+         * 用于初始化start、stop线程池，这个线程池有以下特点：
+
+         1. core线程和max是相等的，默认为1
+         2. 允许core线程在超时未获取到任务时退出线程
+         3. 线程获取任务的超时时间是10s，也就是说所有的线程(包括core线程)，超过10s未获取到任务，那么这个线程就会被销毁
+
+         这么做的初衷是什么呢？因为这个线程池只需要在容器启动和停止的时候发挥作用，没必要时时刻刻处理任务队列
+         */
         super.initInternal();
     }
 

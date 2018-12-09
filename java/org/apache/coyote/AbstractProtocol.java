@@ -527,6 +527,8 @@ public abstract class AbstractProtocol<S> implements ProtocolHandler,
      * NOTE: There is no maintenance of state or checking for valid transitions
      * within this class. It is expected that the connector will maintain state
      * and prevent invalid state transitions.
+     *
+     * 调用ProtocolHandler的init进行初始化是调用的AbstractProtocol，首先完成jmx的注册，然后对NioEndpoint进行初始化
      */
 
     @Override
@@ -535,6 +537,7 @@ public abstract class AbstractProtocol<S> implements ProtocolHandler,
             getLog().info(sm.getString("abstractProtocolHandler.init", getName()));
             logPortOffset();
         }
+        // 完成jmx注册
 
         if (oname == null) {
             // Component not pre-registered so register it
@@ -553,7 +556,7 @@ public abstract class AbstractProtocol<S> implements ProtocolHandler,
         String endpointName = getName();
         endpoint.setName(endpointName.substring(1, endpointName.length()-1));
         endpoint.setDomain(domain);
-
+        // 初始化endpoint
         endpoint.init();
     }
 
@@ -565,6 +568,7 @@ public abstract class AbstractProtocol<S> implements ProtocolHandler,
             logPortOffset();
         }
 
+        //// 调用 endpoint 的 start 方法
         endpoint.start();
         monitorFuture = getUtilityExecutor().scheduleWithFixedDelay(
                 new Runnable() {
@@ -706,6 +710,7 @@ public abstract class AbstractProtocol<S> implements ProtocolHandler,
     protected static class ConnectionHandler<S> implements AbstractEndpoint.Handler<S> {
 
         private final AbstractProtocol<S> proto;
+        //这个属性
         private final RequestGroupInfo global = new RequestGroupInfo();
         private final AtomicLong registerCount = new AtomicLong(0);
         private final Map<S,Processor> connections = new ConcurrentHashMap<>();
@@ -734,6 +739,13 @@ public abstract class AbstractProtocol<S> implements ProtocolHandler,
         }
 
 
+        /**
+         * 这里处理请求
+         * @param wrapper
+         * @param status The current socket status
+         *
+         * @return
+         */
         @Override
         public SocketState process(SocketWrapperBase<S> wrapper, SocketEvent status) {
             if (getLog().isDebugEnabled()) {
@@ -831,6 +843,8 @@ public abstract class AbstractProtocol<S> implements ProtocolHandler,
 
                 SocketState state = SocketState.CLOSED;
                 do {
+
+                    //这里处理请求的，找半天啊，返回LONG
                     state = processor.process(wrapper, status);
 
                     if (state == SocketState.UPGRADING) {

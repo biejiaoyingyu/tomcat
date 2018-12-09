@@ -23,6 +23,10 @@ import java.util.EventObject;
  * that implements the Lifecycle interface.
  *
  * @author Craig R. McClanahan
+ *
+ * 这个类也很简单，data和type作为类的内置实例变量，唯一特别是使用了jdk内置的java.util.EventObject
+ * 作为父类来支持事件定义，这里在事件构造函数中将org.apache.catalina.Lifecycle
+ * 类的实例lifecycle作为事件源，保存lifecycle对象的引用，并提供了getLifecycle方法返回这个引用。
  */
 public final class LifecycleEvent extends EventObject {
 

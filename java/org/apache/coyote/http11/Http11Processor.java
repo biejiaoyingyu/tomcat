@@ -145,6 +145,11 @@ public class Http11Processor extends AbstractProcessor {
     private SendfileDataBase sendfileData = null;
 
 
+    /**
+     * 这个也很重要吧
+     * @param protocol
+     * @param adapter
+     */
     public Http11Processor(AbstractHttp11Protocol<?> protocol, Adapter adapter) {
         super(adapter);
         this.protocol = protocol;
@@ -222,6 +227,7 @@ public class Http11Processor extends AbstractProcessor {
      * code.  Use the same list of codes as Apache/httpd.
      */
     private static boolean statusDropsConnection(int status) {
+        //对应状态码
         return status == 400 /* SC_BAD_REQUEST */ ||
                status == 408 /* SC_REQUEST_TIMEOUT */ ||
                status == 411 /* SC_LENGTH_REQUIRED */ ||
@@ -275,6 +281,11 @@ public class Http11Processor extends AbstractProcessor {
         rp.setStage(org.apache.coyote.Constants.STAGE_PARSE);
 
         // Setting up the I/O
+        // 对发送和接收缓冲区做设置
+        // Socket中获取输入输出流
+        // 处首先将SocketWrapper与当前processor进行关联，然后初始化输入输出流缓冲类，
+        // init(SocketWrapper, AbstractEndpoint)实际上是将socket内部的输入输出流
+        // 赋值给了输入输出缓冲类中的输入输出流
         setSocketWrapper(socketWrapper);
         inputBuffer.init(socketWrapper);
         outputBuffer.init(socketWrapper);
@@ -291,8 +302,11 @@ public class Http11Processor extends AbstractProcessor {
 
             // Parsing the request header
             try {
+                // (2)对请求头进行解析
                 if (!inputBuffer.parseRequestLine(keptAlive, protocol.getConnectionTimeout(),
                         protocol.getKeepAliveTimeout())) {
+
+                    // 在这里只要分析请求头的第一行,
                     if (inputBuffer.getParsingRequestLinePhase() == -1) {
                         return SocketState.UPGRADING;
                     } else if (handleIncompleteRequestLineRead()) {
@@ -301,13 +315,14 @@ public class Http11Processor extends AbstractProcessor {
                 }
 
                 if (protocol.isPaused()) {
-                    // 503 - Service unavailable
+                    // 503 - Service unavailable，注意和这个错误代码
                     response.setStatus(503);
                     setErrorState(ErrorState.CLOSE_CLEAN, null);
                 } else {
                     keptAlive = true;
                     // Set this every time in case limit has been changed via JMX
                     request.getMimeHeaders().setLimit(protocol.getMaxHeaderCount());
+                    //    (3)对请求头进行解析方法
                     if (!inputBuffer.parseHeaders()) {
                         // We've read part of the request, don't recycle it
                         // instead associate it with the socket
@@ -341,7 +356,7 @@ public class Http11Processor extends AbstractProcessor {
                             log.debug(message, t);
                     }
                 }
-                // 400 - Bad Request
+                // 400 - Bad Request--->参数异常
                 response.setStatus(400);
                 setErrorState(ErrorState.CLOSE_CLEAN, t);
             }
@@ -381,13 +396,14 @@ public class Http11Processor extends AbstractProcessor {
                 // Setting up filters, and parse some request headers
                 rp.setStage(org.apache.coyote.Constants.STAGE_PREPARE);
                 try {
+                    // (4) 请求行和请求头信息进行预处理
                     prepareRequest();
                 } catch (Throwable t) {
                     ExceptionUtils.handleThrowable(t);
                     if (log.isDebugEnabled()) {
                         log.debug(sm.getString("http11processor.request.prepare"), t);
                     }
-                    // 500 - Internal Server Error
+                    // 500 - Internal Server Error--->服务器有异常
                     response.setStatus(500);
                     setErrorState(ErrorState.CLOSE_CLEAN, t);
                 }
@@ -404,6 +420,9 @@ public class Http11Processor extends AbstractProcessor {
             // Process the request in the adapter
             if (getErrorState().isIoAllowed()) {
                 try {
+                    // (5)上面曾今说过org.apache.coyote.Request和org.apache.coyote.Response
+                    // 是第一层次的请求响应，并不是我们通常应用层接触的请求响应，而在service方法中
+                    // 生成了“真正”意义上的请求响应，我称之为第二层次的请求响应。
                     rp.setStage(org.apache.coyote.Constants.STAGE_SERVICE);
                     getAdapter().service(request, response);
                     // Handle when the response was committed before a serious
@@ -555,6 +574,11 @@ public class Http11Processor extends AbstractProcessor {
 
     /**
      * After reading the request headers, we have to setup the request filters.
+     *
+     * 预处理的主要作用是在调用Container容器进行真正处理前，先对请求行和请求头中异常的或者无法处理的信息设置对应
+     * 的错误码，比如对于请求行中的协议来说，Tomcat7能处理的就是Http1.1、1.0和0.9三个版本，当程序发现解析出的协
+     * 议不在三者之中，就会设置响应码为505。再比如代码中会判断user-agent头域，如果域值符合受限user-agent正则表
+     * 达式，那么该user-agent就无法正常访问
      */
     private void prepareRequest() {
 

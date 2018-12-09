@@ -52,15 +52,18 @@ public class ConnectorCreateRule extends Rule {
      * @param name the local name if the parser is namespace aware, or just
      *   the element name otherwise
      * @param attributes The attribute list for this element
+     *
+     * 所以在碰到server.xml文件中的Server/Service/Connector节点时将会触发ConnectorCreateRule类的begin方法的调用
      */
     @Override
-    public void begin(String namespace, String name, Attributes attributes)
-            throws Exception {
+    public void begin(String namespace, String name, Attributes attributes) throws Exception {
         Service svc = (Service)digester.peek();
         Executor ex = null;
         if ( attributes.getValue("executor")!=null ) {
             ex = svc.getExecutor(attributes.getValue("executor"));
         }
+        //会根据配置文件中Server/Service/Connector节点的protocol属性调用
+        //先看第一个Connector节点，调用Connector的构造方法时会传入字符串HTTP/1.1
         Connector con = new Connector(attributes.getValue("protocol"));
         if (ex != null) {
             setExecutor(con, ex);

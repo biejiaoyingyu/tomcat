@@ -1037,14 +1037,17 @@ public abstract class AbstractEndpoint<S,U> {
             }
             SocketProcessorBase<S> sc = processorCache.pop();
             if (sc == null) {
+                // 创建一个 SocketProcessor 的实例
                 sc = createSocketProcessor(socketWrapper, event);
             } else {
                 sc.reset(socketWrapper, event);
             }
             Executor executor = getExecutor();
             if (dispatch && executor != null) {
+                // 将任务放到之前建立的 worker 线程池中执行
                 executor.execute(sc);
             } else {
+                // ps: 如果 dispatch 为 false，那么就当前线程自己执行
                 sc.run();
             }
         } catch (RejectedExecutionException ree) {
@@ -1095,6 +1098,7 @@ public abstract class AbstractEndpoint<S,U> {
 
     public final void init() throws Exception {
         if (bindOnInit) {
+            //进入bind()
             bindWithCleanup();
             bindState = BindState.BOUND_ON_INIT;
         }
@@ -1167,10 +1171,13 @@ public abstract class AbstractEndpoint<S,U> {
 
 
     public final void start() throws Exception {
+        // 按照我们的流程，刚刚 init 的时候，已经把 bindState 改为 BindState.BOUND_ON_INIT 了，
+        // 所以下面的 if 分支我们就不进去了
         if (bindState == BindState.UNBOUND) {
             bindWithCleanup();
             bindState = BindState.BOUND_ON_START;
         }
+        // 往里看 NioEndpoint 的实现
         startInternal();
     }
 

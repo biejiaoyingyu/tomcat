@@ -282,6 +282,10 @@ public class HostConfig implements LifecycleListener {
      * Process the START event for an associated Host.
      *
      * @param event The lifecycle event that has occurred
+     * 以下是 HostConfig 处理事件通知的代码，我们着重关注下 start 方法，这个方法
+     * 里面主要是做一些应用部署的准备工作，比如过滤无效的webapp、解压war包等，而主
+     * 要的逻辑在于 deployDirectories 中，它会往线程池中提交一个 DeployDirectory
+     * 任务，并且调用 Future#get() 阻塞当前线程，直到 deploy 工作完成
      */
     @Override
     public void lifecycleEvent(LifecycleEvent event) {
@@ -420,12 +424,16 @@ public class HostConfig implements LifecycleListener {
 
         File appBase = host.getAppBaseFile();
         File configBase = host.getConfigBaseFile();
+        // 过滤出 webapp 要部署应用的目录
         String[] filteredAppPaths = filterAppPaths(appBase.list());
         // Deploy XML descriptors from configBase
+        // 部署 xml 描述文件
         deployDescriptors(configBase, configBase.list());
         // Deploy WARs
+        // 解压 war 包，但是这里还不会去启动应用
         deployWARs(appBase, filteredAppPaths);
         // Deploy expanded folders
+        // 处理已经存在的目录，前面解压的 war 包不会再行处理
         deployDirectories(appBase, filteredAppPaths);
 
     }
@@ -518,12 +526,9 @@ public class HostConfig implements LifecycleListener {
 
             if (files[i].toLowerCase(Locale.ENGLISH).endsWith(".xml")) {
                 ContextName cn = new ContextName(files[i], true);
-
-                if (isServiced(cn.getName()) || deploymentExists(cn.getName()))
-                    continue;
-
-                results.add(
-                        es.submit(new DeployDescriptor(this, cn, contextXml)));
+                if (isServiced(cn.getName()) || deploymentExists(cn.getName())) continue;
+                //而这个 DeployDirectory 任务很简单，只是调用 `HostConfig#deployDirectory(cn, dir)`
+                results.add(es.submit(new DeployDescriptor(this, cn, contextXml)));
             }
         }
 
@@ -544,32 +549,31 @@ public class HostConfig implements LifecycleListener {
      * @param contextXml The descriptor
      */
     @SuppressWarnings("null") // context is not null
+
     protected void deployDescriptor(ContextName cn, File contextXml) {
 
-        DeployedApplication deployedApp =
-                new DeployedApplication(cn.getName(), true);
+        DeployedApplication deployedApp = new DeployedApplication(cn.getName(), true);
 
         long startTime = 0;
         // Assume this is a configuration descriptor and deploy it
         if(log.isInfoEnabled()) {
            startTime = System.currentTimeMillis();
-           log.info(sm.getString("hostConfig.deployDescriptor",
-                    contextXml.getAbsolutePath()));
+           log.info(sm.getString("hostConfig.deployDescriptor", contextXml.getAbsolutePath()));
         }
+
 
         Context context = null;
         boolean isExternalWar = false;
         boolean isExternal = false;
         File expandedDocBase = null;
-
+        //// 实例化 StandardContext
         try (FileInputStream fis = new FileInputStream(contextXml)) {
+
             synchronized (digesterLock) {
                 try {
                     context = (Context) digester.parse(fis);
                 } catch (Exception e) {
-                    log.error(sm.getString(
-                            "hostConfig.deployDescriptor.error",
-                            contextXml.getAbsolutePath()), e);
+                    log.error(sm.getString("hostConfig.deployDescriptor.error", contextXml.getAbsolutePath()), e);
                 } finally {
                     digester.reset();
                     if (context == null) {
@@ -621,8 +625,7 @@ public class HostConfig implements LifecycleListener {
                                 contextXml.getAbsolutePath(), dir.getAbsolutePath()));
                     }
                 } else {
-                    log.warn(sm.getString("hostConfig.deployDescriptor.localDocBaseSpecified",
-                             docBase));
+                    log.warn(sm.getString("hostConfig.deployDescriptor.localDocBaseSpecified", docBase));
                     // Ignore specified docBase
                     context.setDocBase(null);
                 }
@@ -631,8 +634,7 @@ public class HostConfig implements LifecycleListener {
             host.addChild(context);
         } catch (Throwable t) {
             ExceptionUtils.handleThrowable(t);
-            log.error(sm.getString("hostConfig.deployDescriptor.error",
-                                   contextXml.getAbsolutePath()), t);
+            log.error(sm.getString("hostConfig.deployDescriptor.error", contextXml.getAbsolutePath()), t);
         } finally {
             // Get paths for WAR and expanded WAR in appBase
 
@@ -1062,6 +1064,12 @@ public class HostConfig implements LifecycleListener {
      * @param cn The context name
      * @param dir The path to the root folder of the weapp
      */
+    //1. 使用 digester，或者反射实例化 StandardContext
+    //2. 实例化 ContextConfig，并且为 Context 容器注册事件监听器，和 StandardHost 的套路一样，
+    //   借助 XXXConfig 完成容器的启动、停止工作
+    //3. 将当前 Context 实例作为子容器添加到 Host 容器中，添加子容器的逻辑在 ContainerBase 中
+    //   已经实现了，如果当前 Container 的状态是 STARTING_PREP 并且 startChildren 为 true，则
+    //   还会启动子容器
     protected void deployDirectory(ContextName cn, File dir) {
 
 
@@ -1075,8 +1083,7 @@ public class HostConfig implements LifecycleListener {
 
         Context context = null;
         File xml = new File(dir, Constants.ApplicationContextXml);
-        File xmlCopy =
-                new File(host.getConfigBaseFile(), cn.getBaseName() + ".xml");
+        File xmlCopy = new File(host.getConfigBaseFile(), cn.getBaseName() + ".xml");
 
 
         DeployedApplication deployedApp;
@@ -1112,16 +1119,19 @@ public class HostConfig implements LifecycleListener {
                 } else {
                     context.setConfigFile(xml.toURI().toURL());
                 }
+                // (省略)为 Context 设置 configFile
             } else if (!deployThisXML && xml.exists()) {
                 // Block deployment as META-INF/context.xml may contain security
                 // configuration necessary for a secure deployment.
+                // 异常处理
                 log.error(sm.getString("hostConfig.deployDescriptor.blocked",
                         cn.getPath(), xml, xmlCopy));
                 context = new FailedContext();
             } else {
                 context = (Context) Class.forName(contextClass).getConstructor().newInstance();
             }
-
+            // 实例化 ContextConfig，作为 LifecycleListener 添加到 Context 容器中，这和 StandardHost
+            // 的套路一样，都是使用 XXXConfig
             Class<?> clazz = Class.forName(host.getConfigClass());
             LifecycleListener listener = (LifecycleListener) clazz.getConstructor().newInstance();
             context.addLifecycleListener(listener);
@@ -1130,6 +1140,18 @@ public class HostConfig implements LifecycleListener {
             context.setPath(cn.getPath());
             context.setWebappVersion(cn.getVersion());
             context.setDocBase(cn.getBaseName());
+            // 实例化 Context 之后，为 Host 添加子容器
+
+            //1.为什么要使用 HostConfig 组件启动 Context 容器呢，不可以直接在 Host 容器中直接启动吗？
+            //  HostConfig 不仅仅是启动、停止 Context 容器，还封装了很多应用部署的逻辑，此外，还会对
+            //  web.xml、context.xml 文件的改动进行监听，默认情况会重新启动 Context 容器。而这个 Host
+            //  只是负责管理 Context 的生命周期，基于单一职责的原则，tomcat 利用事件通知的方式，很好地解
+            //  决了藕合问题，Context 容器也是如此，它会对应一个ContextConfig
+
+            //2.Context 容器又是如何启动的？前面我们也提到了，HostConfig 将当前 Context 实例作为子容器
+            //  添加到 Host 容器中（调用 ContainerBase.addChild 方法 ），而 Context 的启动就是在添加的
+            //  时候调用的，ContainerBase 的关键代码如下所示，Context 启动的时候会解析web.xml，以及启动
+            //  Servlet、Listener，Servlet3.0还支持注解配置，等等这一系列逻辑将在下一篇文章进行分析
             host.addChild(context);
         } catch (Throwable t) {
             ExceptionUtils.handleThrowable(t);
@@ -1558,17 +1580,14 @@ public class HostConfig implements LifecycleListener {
 
         try {
             ObjectName hostON = host.getObjectName();
-            oname = new ObjectName
-                (hostON.getDomain() + ":type=Deployer,host=" + host.getName());
-            Registry.getRegistry(null, null).registerComponent
-                (this, oname, this.getClass().getName());
+            oname = new ObjectName(hostON.getDomain() + ":type=Deployer,host=" + host.getName());
+            Registry.getRegistry(null, null).registerComponent(this, oname, this.getClass().getName());
         } catch (Exception e) {
             log.error(sm.getString("hostConfig.jmx.register", oname), e);
         }
 
         if (!host.getAppBaseFile().isDirectory()) {
-            log.error(sm.getString("hostConfig.appBase", host.getName(),
-                    host.getAppBaseFile().getPath()));
+            log.error(sm.getString("hostConfig.appBase", host.getName(), host.getAppBaseFile().getPath()));
             host.setDeployOnStartup(false);
             host.setAutoDeploy(false);
         }
@@ -1820,8 +1839,7 @@ public class HostConfig implements LifecycleListener {
         private ContextName cn;
         private File descriptor;
 
-        public DeployDescriptor(HostConfig config, ContextName cn,
-                File descriptor) {
+        public DeployDescriptor(HostConfig config, ContextName cn, File descriptor) {
             this.config = config;
             this.cn = cn;
             this.descriptor= descriptor;

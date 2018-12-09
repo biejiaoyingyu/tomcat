@@ -37,6 +37,8 @@ public abstract class AbstractProcessorLight implements Processor {
     private Set<DispatchType> dispatches = new CopyOnWriteArraySet<>();
 
 
+
+    //最终到这里了，在这里因为传进来的status 的值为SocketEvent.OPEN_READ,使用直接看到
     @Override
     public SocketState process(SocketWrapperBase<?> socketWrapper, SocketEvent status)
             throws IOException {
@@ -63,6 +65,7 @@ public abstract class AbstractProcessorLight implements Processor {
                 // Extra write event likely after async, ignore
                 state = SocketState.LONG;
             } else if (status == SocketEvent.OPEN_READ){
+                //进入这里
                 state = service(socketWrapper);
             } else {
                 // Default to closing the socket if the SocketEvent passed in
@@ -77,6 +80,7 @@ public abstract class AbstractProcessorLight implements Processor {
             }
 
             if (state != SocketState.CLOSED && isAsync()) {
+                // 判断是不是异步处理
                 state = asyncPostProcess();
                 if (getLog().isDebugEnabled()) {
                     getLog().debug("Socket: [" + socketWrapper +
@@ -92,7 +96,7 @@ public abstract class AbstractProcessorLight implements Processor {
         } while (state == SocketState.ASYNC_END ||
                 dispatches != null && state != SocketState.CLOSED);
 
-        return state;
+        return state;// 返回LONG
     }
 
 

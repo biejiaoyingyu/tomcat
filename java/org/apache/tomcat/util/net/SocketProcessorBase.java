@@ -51,5 +51,6 @@ public abstract class SocketProcessorBase<S> implements Runnable {
     }
 
 
+    //任务会调用到这里
     protected abstract void doRun();
 }

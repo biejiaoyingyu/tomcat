@@ -26,6 +26,9 @@ package org.apache.catalina;
  * change has taken place.
  *
  * @author Craig R. McClanahan
+ *
+ * 如果我们在tomcat启动、停止的时候增加额外的逻辑，比如发送邮件通知，则可以从这个地方入手
+ * 默认从xml中查找监听器。
  */
 public interface LifecycleListener {
 
@@ -34,6 +37,14 @@ public interface LifecycleListener {
      * Acknowledge the occurrence of the specified event.
      *
      * @param event LifecycleEvent that has occurred
+     */
+    /**
+     * 如此简单，只有一个方法，这个方法用作某个事件（org.apache.catalina.LifecycleEvent）
+     * 产生时通知当前监听器的实现类，具体针对该事件如何处理由监听器实现类自己决定。
+     *
+     * 还有org.apache.catalina.core.NamingContextListener，
+     * 而这个LifecycleListener是在StandardServer的构造器中添加的
+     * @param event
      */
     public void lifecycleEvent(LifecycleEvent event);
 

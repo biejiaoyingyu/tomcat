@@ -31,6 +31,10 @@ import org.apache.tomcat.util.net.SSLHostConfig;
  * @author Remy Maucherat
  * @author Costin Manolache
  * @see Adapter
+ *
+ * ProtocolHandler，它是一个抽象的协议实现，它不同于JNI这样的Jk协议，它是单线程、基于流的协议。
+ * ProtocolHandler是一个Cycote连接器实现的主要接口，而Adapter适配器是由一个Coyote Servlet
+ * 容器实现的主要接口，定义了处理请求的抽象接口。
  */
 public interface ProtocolHandler {
 

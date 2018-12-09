@@ -269,6 +269,9 @@ public abstract class ContainerBase extends LifecycleMBeanBase
      * The number of threads available to process start and stop events for any
      * children associated with this container.
      */
+    /**
+     * 线程默认数为1
+     */
     private int startStopThreads = 1;
     protected ExecutorService startStopExecutor;
 
@@ -866,6 +869,10 @@ public abstract class ContainerBase extends LifecycleMBeanBase
     private void reconfigureStartStopExecutor(int threads) {
         if (threads == 1) {
             // Use a fake executor
+            /**
+             * 在start的时候，如果发现有子容器，则会把子容器的start操作放在线程池中进行处理
+             * 在stop的时候，也会把stop操作放在线程池中处理
+             */
             if (!(startStopExecutor instanceof InlineExecutorService)) {
                 startStopExecutor = new InlineExecutorService();
             }
@@ -884,6 +891,12 @@ public abstract class ContainerBase extends LifecycleMBeanBase
      *
      * @exception LifecycleException if this component detects a fatal error
      *  that prevents this component from being used
+     *
+     *
+     *  1. 启动子容器
+     *  2. 启动Pipeline，并且发出STARTING事件
+     *  3. 如果backgroundProcessorDelay参数 >= 0，则开启ContainerBackgroundProcessor线程，
+     *     用于调用子容器的backgroundProcess
      */
     @Override
     protected synchronized void startInternal() throws LifecycleException {
@@ -901,12 +914,27 @@ public abstract class ContainerBase extends LifecycleMBeanBase
         }
 
         // Start our child containers, if any
+        // 把子容器的启动步骤放在线程中处理，默认情况下线程池只有一个线程处理任务队列
         Container children[] = findChildren();
         List<Future<Void>> results = new ArrayList<>();
         for (int i = 0; i < children.length; i++) {
+            // startStopExecutor是在init阶段创建的线程池，默认情况下 coreSize = maxSize = 1，也就是说默认只
+            // 有一个线程处理子容器的 start，通过调用 Container.setStartStopThreads(int startStopThreads)
+            // 可以改变默认值 1,如果我们有4个webapp，希望能够尽快启动应用，我们只需要设置Host的startStopThreads
+            // 值即可，如下所示。
+
+            //<Host name="localhost"  appBase="webapps" unpackWARs="true" autoDeploy="true" startStopThreads="4">
+            //    <Valve className="org.apache.catalina.valves.AccessLogValve" directory="logs"
+            //     prefix="localhost_access_log" suffix=".txt" pattern="%h %l %u %t "%r" %s %b" />
+            // </Host>
+
+            // ContainerBase会把StartChild任务丢给线程池处理，得到Future，并且会遍历所有的Future进行阻塞result.get()，
+            // 这个操作是将异步启动转同步，子容器启动完成才会继续运行。我们再来看看submit到线程池的StartChild任务，它实现
+            // 了java.util.concurrent.Callable接口，在call里面完成子容器的start动作
             results.add(startStopExecutor.submit(new StartChild(children[i])));
         }
 
+        // 阻塞当前线程，直到子容器start完成
         MultiThrowable multiThrowable = null;
 
         for (Future<Void> result : results) {
@@ -927,6 +955,10 @@ public abstract class ContainerBase extends LifecycleMBeanBase
         }
 
         // Start the Valves in our pipeline (including the basic), if any
+        // 启用Pipeline
+        // Pipeline是管道组件，用于封装了一组有序的Valve，便于Valve顺序地传递或者处理请求
+
+        //Valve 是阀门组件，穿插在 Container 容器中，可以把它理解成请求拦截器，在 tomcat 接收到网络请求与触发 Servlet 之间执行
         if (pipeline instanceof Lifecycle) {
             ((Lifecycle) pipeline).start();
         }
@@ -934,6 +966,8 @@ public abstract class ContainerBase extends LifecycleMBeanBase
         setState(LifecycleState.STARTING);
 
         // Start our thread
+        // 开启ContainerBackgroundProcessor线程用于调用子容器的backgroundProcess方法，
+        // 默认情况下backgroundProcessorDelay=-1，不会启用该线程
         if (backgroundProcessorDelay > 0) {
             monitorFuture = Container.getService(ContainerBase.this).getServer()
                     .getUtilityExecutor().scheduleWithFixedDelay(

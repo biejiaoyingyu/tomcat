@@ -84,6 +84,11 @@ public class ErrorReportValve extends ValveBase {
      *
      * @exception IOException if an input/output error occurs
      * @exception ServletException if a servlet error occurs
+     *
+     * 该阀门的第一句直接调用了下一个阀门，我们可以把该阀门的功能理解为spring中的后置增强，
+     * 即在响应之后再进行某些操作，因为该阀门是用来记录处理请求中产生错误的，而上面说过，
+     * 当流程中发生错误会存在一个对应的错误码，而该错误码又封装在response中，那这里就不难
+     * 理解为什么要在调用链返回过程中再做处理。下一个阀门就是StandardHost的基础阀门StandardHostValve
      */
     @Override
     public void invoke(Request request, Response response) throws IOException, ServletException {

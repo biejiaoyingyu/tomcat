@@ -327,6 +327,10 @@ public class Http11InputBuffer implements InputBuffer, ApplicationBufferHandler 
      *
      * @return true if data is properly fed; false if no data is available
      * immediately and thread should be freed
+     *
+     * Tomcat对于请求中信息的提取基本都是采用如上偏移量加字节数组读取再赋值的方式进行的，
+     * 虽然看上去很杂乱，但我们仔细想一想请求行的三大组成部分：请求方式；请求路径；请求协
+     * 议及版本，再看看对应代码的分割就会发现，代码块与请求三大部分近乎一一对应
      */
     boolean parseRequestLine(boolean keptAlive, int connectionTimeout, int keepAliveTimeout)
             throws IOException {
@@ -337,7 +341,7 @@ public class Http11InputBuffer implements InputBuffer, ApplicationBufferHandler 
         }
         //
         // Skipping blank lines
-        //
+        // 首先排除了一些在请求行之前的空行
         if (parsingRequestLinePhase < 2) {
             byte chr = 0;
             do {
@@ -391,7 +395,8 @@ public class Http11InputBuffer implements InputBuffer, ApplicationBufferHandler 
             //
             // Reading the method name
             // Method name is a token
-            //
+            // 解析了请求方式，当遍历到的指针pos对应的字节为' '或者\t（三部分之间以空格或制表符隔开），
+            // 说明请求方式截取结束，将数据块中的请求方式内容赋值给request中的method
             boolean space = false;
             while (!space) {
                 // Read new bytes if needed
@@ -440,6 +445,11 @@ public class Http11InputBuffer implements InputBuffer, ApplicationBufferHandler 
             int end = 0;
             //
             // Reading the URI
+
+            //提取请求URI信息，除了和提取请求方式有着相同的逻辑之外，URI还多了个两个判断：
+            // 1.如果遍历到字节为\r或者\n，则请求协议和版本为Http/0.9;
+            // 2.如果字节为?说明遍历到了URI后面跟的参数，记录当前位置为questionPos。
+            //   一切准备就绪才进行URI和queryString的提取赋值。
             //
             boolean space = false;
             while (!space) {
@@ -560,7 +570,8 @@ public class Http11InputBuffer implements InputBuffer, ApplicationBufferHandler 
         HeaderParseStatus status = HeaderParseStatus.HAVE_MORE_HEADERS;
 
         do {
-            status = parseHeader();
+            //这里
+            status =  parseHeader();
             // Checking that
             // (1) Headers plus request line size does not exceed its limit
             // (2) There are enough bytes to avoid expanding the buffer when
@@ -744,6 +755,18 @@ public class Http11InputBuffer implements InputBuffer, ApplicationBufferHandler 
      *
      * @return false after reading a blank line (which indicates that the
      * HTTP header parsing is done
+     *
+     * 请求头由多个请求头域组成，每一个请求头域又分为域名、分隔符:、域值，而代码中的主要结构可以分成三个大while，
+     * 第一个while的作用上面将的一样，为了滤除空行；
+     * 第二个while筛选出所有的域名，并为每一个域名调用headers.addValue(byte[], int, int)生成对应的，用于存储
+     * 域名对应域值的对象MessageBytes headerValue；
+     * 第三个while用于解析域值，并把该值赋给与域名对应的headerValue，其中又包含两个while，
+     *         第一个同样是滤去空格或者制表符，
+     *              第二个读取数据直到头域某一行的末尾，
+     *              但这时又要分为两种情况：1.该头域的值是单行的，此时读取到行末该行就算解析完毕；
+     *                                   2.该头域的值存在多行，如果存在这种情况，那么域值接续行
+     *                                   的头字节为空格或者制表符，当检测到这种情况时要继续循环
+     *                                   提取内容，并计算好数据块真正的偏移位置
      */
     private HeaderParseStatus parseHeader() throws IOException {
 
@@ -857,6 +880,7 @@ public class Http11InputBuffer implements InputBuffer, ApplicationBufferHandler 
             if (headerParsePos == HeaderParsePosition.HEADER_VALUE) {
 
                 // Reading bytes until the end of the line
+
                 boolean eol = false;
                 while (!eol) {
 

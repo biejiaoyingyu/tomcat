@@ -699,6 +699,13 @@ public final class Mapper {
         }
         host.toChars();
         uri.toChars();
+
+        //这里第一第二个很好理解，分别对应请求的host和经过URI解码的URI，
+        // 第三个参数表示请求对应ContextVersion的版本，
+        // 最后一个参数是在第二层次request中一个成员变量mappingData，
+        // 当代码执行完后该对象中会包含本次请求对应的所有容器组件。
+        // 结合之前Mapper中元素的结构和上述代码，我们将逻辑分成4个部分，
+        // 分别对应Host映射、Context映射、ContextVersion映射和Wrapper映射
         internalMap(host.getCharChunk(), uri.getCharChunk(), version, mappingData);
     }
 
@@ -744,6 +751,7 @@ public final class Mapper {
         }
 
         // Virtual host mapping
+        //    （1）首先找到host对应Mapper中的映射mappedHost，如果没有找到对应的映射主机，则使用默认主机。
         MappedHost[] hosts = this.hosts;
         MappedHost mappedHost = exactFindIgnoreCase(hosts, host);
         if (mappedHost == null) {
@@ -777,6 +785,8 @@ public final class Mapper {
         uri.setLimit(-1);
 
         // Context mapping
+        // （2） 标注(2)从mappedHost中的ContextList，进而得到该对象中的Context[]，
+        // 然后根据参数uri找到对应的Context的下标，如果没有找到默认采用Context[]的首元素。
         ContextList contextList = mappedHost.contextList;
         MappedContext[] contexts = contextList.contexts;
         int pos = find(contexts, uri);
@@ -823,7 +833,8 @@ public final class Mapper {
         }
 
         mappingData.contextPath.setString(context.name);
-
+        //（3）标注(3)根据参数version从上一步定位的Context.ContextVersion[]
+        // 中再定位对应的ContextVersion，并将ContextVersion赋值给mappingData中对应的变量
         ContextVersion contextVersion = null;
         ContextVersion[] contextVersions = context.versions;
         final int versionCount = contextVersions.length;
@@ -846,6 +857,7 @@ public final class Mapper {
         mappingData.contextSlashCount = contextVersion.slashCount;
 
         // Wrapper mapping
+        //    （4）
         if (!contextVersion.isPaused()) {
             internalMapWrapper(contextVersion, uri, mappingData);
         }

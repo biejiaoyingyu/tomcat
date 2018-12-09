@@ -800,12 +800,18 @@ public class StandardHost extends ContainerBase implements Host {
      *
      * @exception LifecycleException if this component detects a fatal error
      *  that prevents this component from being used
+     *
+     *  tomcat 在这块的逻辑处理有点特殊，使用 HostConfig 加载子容器，而这个 HostConfig
+     *  是一个 LifecycleListener，它会处理 start、stop 事件通知，并且会在线程池中启动、
+     *  停止 Context 容器，接下来看下 HostConfig 是如何工作的
      */
     @Override
     protected synchronized void startInternal() throws LifecycleException {
 
         // Set error report valve
+        // errorValve默认使用org.apache.catalina.valves.ErrorReportValve
         String errorValve = getErrorReportValveClass();
+        // 如果所有的阀门中已经存在这个实例，则不进行处理，否则添加到  Pipeline 中
         if ((errorValve != null) && (!errorValve.equals(""))) {
             try {
                 boolean found = false;
@@ -816,6 +822,14 @@ public class StandardHost extends ContainerBase implements Host {
                         break;
                     }
                 }
+                // 如果未找到则添加到 Pipeline 中，注意是添加到 basic valve 的前面
+                // 默认情况下，first valve 是 AccessLogValve，basic 是 StandardHostValve
+
+                //StandardHost Pipeline 包含的 Valve 组件：
+
+                //basic：org.apache.catalina.core.StandardHostValve
+                //first：org.apache.catalina.valves.AccessLogValve
+                //需要注意的是，在往 Pipeline 中添加 Valve 阀门时，是添加到 first 后面，basic 前面
                 if(!found) {
                     Valve valve =
                         (Valve) Class.forName(errorValve).getConstructor().newInstance();
@@ -828,6 +842,7 @@ public class StandardHost extends ContainerBase implements Host {
                         errorValve), t);
             }
         }
+        // 调用父类 ContainerBase，完成统一的启动动作
         super.startInternal();
     }
 

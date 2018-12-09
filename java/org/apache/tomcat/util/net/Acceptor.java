@@ -61,9 +61,11 @@ public class Acceptor<U> implements Runnable {
         int errorDelay = 0;
 
         // Loop until we receive a shutdown command
+        // 只要 endpoint 处于 running，这里就一直循环
         while (endpoint.isRunning()) {
 
             // Loop if endpoint is paused
+            // 如果 endpoint 处于 pause 状态，这边 Acceptor 用一个 while 循环将自己也挂起
             while (endpoint.isPaused() && endpoint.isRunning()) {
                 state = AcceptorState.PAUSED;
                 try {
@@ -72,13 +74,15 @@ public class Acceptor<U> implements Runnable {
                     // Ignore
                 }
             }
-
+            // endpoint 结束了，Acceptor 自然也要结束嘛
             if (!endpoint.isRunning()) {
                 break;
             }
             state = AcceptorState.RUNNING;
 
             try {
+                //这里就是处理最大连接数的么？
+                // 如果此时达到了最大连接数(之前我们说过，默认是10000)，就等待
                 //if we have reached max connections, wait
                 endpoint.countUpOrAwaitConnection();
 
@@ -92,6 +96,9 @@ public class Acceptor<U> implements Runnable {
                 try {
                     // Accept the next incoming connection from the server
                     // socket
+                    //监听到连接后（即浏览器向服务器发起一次请求）
+                    // 这里就是接收下一个进来的 SocketChannel
+                    // 之前我们设置了 ServerSocketChannel 为阻塞模式，所以这边的 accept 是阻塞的
                     socket = endpoint.serverSocketAccept();
                 } catch (Exception ioe) {
                     // We didn't get a socket
@@ -106,16 +113,21 @@ public class Acceptor<U> implements Runnable {
                     }
                 }
                 // Successful accept, reset the error delay
+                // accept 成功，将 errorDelay 设置为 0
                 errorDelay = 0;
 
                 // Configure the socket
                 if (endpoint.isRunning() && !endpoint.isPaused()) {
                     // setSocketOptions() will hand the socket off to
                     // an appropriate processor if successful
+                    // 处理请求
+                    // setSocketOptions() 是这里的关键方法，也就是说前面千辛万苦都是为了能到这里进行处理
                     if (!endpoint.setSocketOptions(socket)) {
+                        // 如果上面的方法返回 false，关闭 SocketChannel
                         endpoint.closeSocket(socket);
                     }
                 } else {
+                    // 由于 endpoint 不 running 了，或者处于 pause 了，将此 SocketChannel 关闭
                     endpoint.destroySocket(socket);
                 }
             } catch (Throwable t) {

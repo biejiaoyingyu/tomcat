@@ -116,6 +116,9 @@ final class StandardHostValve extends ValveBase {
         if (request.isAsyncSupported()) {
             request.setAsyncSupported(context.getPipeline().isAsyncSupported());
         }
+        //(1)Context.fireRequestInitEvent(Request)，该方法内封装了ServletRequestEvent事件，
+        // 并由一系列的应用事件监听器applicationEventListenersObjects负责处理，同样默认不存在
+        // 具体的监听器，返回true，导致代码走到标注(2)处
 
         boolean asyncAtStart = request.isAsync();
 
@@ -136,6 +139,7 @@ final class StandardHostValve extends ValveBase {
             // application for processing.
             try {
                 if (!response.isErrorReportRequired()) {
+                    //(2) 再一次责任链调用StandardContext内的第一个阀门
                     context.getPipeline().getFirst().invoke(request, response);
                 }
             } catch (Throwable t) {

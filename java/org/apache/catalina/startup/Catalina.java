@@ -205,6 +205,7 @@ public class Catalina {
         this.useNaming = useNaming;
     }
 
+    //启动的时候反射调用到这里
     public void setAwait(boolean b) {
         await = b;
     }
@@ -300,6 +301,7 @@ public class Catalina {
         digester.setUseContextClassLoader(true);
 
         // Configure the actions we will be using
+
         digester.addObjectCreate("Server",
                                  "org.apache.catalina.core.StandardServer",
                                  "className");
@@ -330,7 +332,11 @@ public class Catalina {
         digester.addSetNext("Server/Service",
                             "addService",
                             "org.apache.catalina.Service");
-
+        // 将调用org.apache.catalina.core.StandardServer类的addLifecycleListener方法，
+        // 将根据server.xml中配置的Server节点下的Listener节点所定义的className属性构造对
+        // 象实例，并作为addLifecycleListener方法的入参。所有的监听器都会实现上面提到的
+        // org.apache.catalina.LifecycleListener接口。Server节点下的Listener节点有好几个，
+        // 这里以org.apache.catalina.core.JasperListener举例。
         digester.addObjectCreate("Server/Service/Listener",
                                  null, // MUST be specified in the element
                                  "className");
@@ -349,11 +355,10 @@ public class Catalina {
                             "addExecutor",
                             "org.apache.catalina.Executor");
 
-
+        //server.xml中的connector节点时是这么处理的：
+        digester.addRule("Server/Service/Connector", new ConnectorCreateRule());
         digester.addRule("Server/Service/Connector",
-                         new ConnectorCreateRule());
-        digester.addRule("Server/Service/Connector", new SetAllPropertiesRule(
-                new String[]{"executor", "sslImplementationName", "protocol"}));
+                new SetAllPropertiesRule(new String[]{"executor", "sslImplementationName", "protocol"}));
         digester.addSetNext("Server/Service/Connector",
                             "addConnector",
                             "org.apache.catalina.connector.Connector");
@@ -476,6 +481,8 @@ public class Catalina {
         stopServer(null);
     }
 
+
+    //关闭Tomcat通过执行shutdown.bat或shutdown.sh脚本最终会调用到这里
     public void stopServer(String[] arguments) {
 
         if (arguments != null) {
@@ -485,6 +492,7 @@ public class Catalina {
         Server s = getServer();
         if (s == null) {
             // Create and execute our Digester
+            //读取配置文件
             Digester digester = createStopDigester();
             File file = configFile();
             try (FileInputStream fis = new FileInputStream(file)) {
@@ -510,6 +518,9 @@ public class Catalina {
         // Stop the existing server
         s = getServer();
         if (s.getPortWithOffset() > 0) {
+            // 即向localhost:8005发起一个Socket连接，并写入SHUTDOWN字符串。
+            // 这样将会关闭Tomcat中的那唯一的一个用户线程，接着所有守护线程将会退出（由JVM保证），
+            // 之后整个应用关闭。
             try (Socket socket = new Socket(s.getAddress(), s.getPortWithOffset());
                     OutputStream stream = socket.getOutputStream()) {
                 String shutdown = s.getShutdown();
@@ -536,6 +547,23 @@ public class Catalina {
 
     /**
      * Start a new server instance.
+     *
+     * load阶段主要是通过读取conf/server.xml或者server-embed.xml，实例化
+     * Server、Service、Connector、Engine、Host等组件，并调用Lifecycle#init()
+     * 完成初始化动作，以及发出INITIALIZING、INITIALIZED事件
+     */
+
+    /**
+     *
+     Digester---->利用jdk提供的sax解析功能，将server.xml的配置解析成对应的Bean，并完成注入，比如往Server中注入Service
+     EngineConfig---->它是一个LifecycleListener实现，用于配置Engine，但是只会处理START_EVENT和STOP_EVENT事件
+     Connector---->默认会有两种：HTTP/1.1、AJP，不同的Connector内部持有不同的CoyoteAdapter和ProtocolHandler，在Connector
+                    初始化的时候，也会对ProtocolHandler进行初始化，完成端口的监听
+     ProtocolHandler---->常用的实现有Http11NioProtocol、AjpNioProtocol，还有apr系列的Http11AprProtocol、AjpAprProtocol，
+                        apr系列只有在使用apr包的时候才会使用到
+     在ProtocolHandler------>调用init初始化的时候，还会去执行AbstractEndpoint的init方法，完成请求端口绑定、初始化NIO等操作，
+                    在tomcat7中使用JIoEndpoint阻塞IO，而tomcat8中直接移除了JIoEndpoint，具体信息请查看
+                    org.apache.tomcat.util.net这个包
      */
     public void load() {
 
@@ -549,20 +577,42 @@ public class Catalina {
         initDirs();
 
         // Before digester - it may be needed
+        //初始化jmx的环境变量
         initNaming();
 
         // Set configuration source
+        // 定义解析server.xml的配置，告诉Digester哪个xml标签应该解析成什么类
         ConfigFileLoader.setSource(new CatalinaBaseConfigurationSource(Bootstrap.getCatalinaBaseFile(), getConfigFile()));
         File file = configFile();
 
         // Create and execute our Digester
+        // 一是创建一个Digester对象，将当前对象压入Digester里的对象栈顶，
+        // 根据inputSource里设置的文件xml路径及所创建的Digester对象所
+        // 包含的解析规则生成相应对象，并调用相应方法将对象之间关联起来
+
         Digester digester = createStartDigester();
 
+        // 首先尝试加载conf/server.xml，省略部分代码......
+        // 如果不存在conf/server.xml，则加载server-embed.xml(该xml在catalina.jar中)，省略部分代码......
+        // 如果还是加载不到xml，则直接return，省略部分代码......
         try (ConfigurationSource.Resource resource = ConfigFileLoader.getSource().getServerXml()) {
             InputStream inputStream = resource.getInputStream();
             InputSource inputSource = new InputSource(resource.getURI().toURL().toString());
+
+
             inputSource.setByteStream(inputStream);
+            // 把Catalina作为一个顶级实例
             digester.push(this);
+            // 解析过程会实例化各个组件，比如Server、Container、Connector等
+
+            //这样经过对xml文件的解析将会产生
+            // org.apache.catalina.core.StandardServer、
+            // org.apache.catalina.core.StandardService、
+            // org.apache.catalina.connector.Connector、
+            // org.apache.catalina.core.StandardEngine、
+            // org.apache.catalina.core.StandardHost、
+            // org.apache.catalina.core.StandardContext等等一系列对象，
+            // 这些对象从前到后前一个包含后一个对象的引用（一对一或一对多的关系）。
             digester.parse(inputSource);
         } catch (Exception e) {
             if  (file == null) {
@@ -576,6 +626,7 @@ public class Catalina {
             return;
         }
 
+        // 给Server设置catalina信息
         getServer().setCatalina(this);
         getServer().setCatalinaHome(Bootstrap.getCatalinaHomeFile());
         getServer().setCatalinaBase(Bootstrap.getCatalinaBaseFile());
@@ -585,6 +636,8 @@ public class Catalina {
 
         // Start the new server
         try {
+            // 调用Lifecycle的init阶段
+            // 二是调用Server接口对象的init方法
             getServer().init();
         } catch (LifecycleException e) {
             if (Boolean.getBoolean("org.apache.catalina.startup.EXIT_ON_INIT_FAILURE")) {
@@ -618,6 +671,13 @@ public class Catalina {
 
     /**
      * Start a new server instance.
+     *  经过以上分析发现，在解析xml产生相应一系列对象后会顺序调用StandardServer对象的init、start方法，
+     *  这里将会涉及到Tomcat的容器生命周期（Lifecycle）
+     *  ----------------------------------------------
+     * 主要分为以下三个步骤，其核心逻辑在于Server组件：
+     * 1. 调用Server的start方法，启动Server组件
+     * 2. 注册jvm关闭的勾子程序，用于安全地关闭Server组件，以及其它组件
+     * 3. 开启shutdown端口的监听并阻塞，用于监听关闭指令
      */
     public void start() {
 
@@ -651,6 +711,7 @@ public class Catalina {
         }
 
         // Register shutdown hook
+        //// 注册勾子，用于安全关闭tomcat
         if (useShutdownHook) {
             if (shutdownHook == null) {
                 shutdownHook = new CatalinaShutdownHook();
@@ -666,9 +727,13 @@ public class Catalina {
                         false);
             }
         }
+        //Bootstrap中会设置await为true，其目的在于让tomcat在shutdown端口阻塞监听关闭命令
 
+        //BootStrap调用start()方法的时候已经将Catalina类的实例变量await设值为true，所以这里将会执行Catalina类的await方法
         if (await) {
+            //如果没有shutdown命令方法会一直循环
             await();
+            //如果到了一步，说明有停止的命令
             stop();
         }
     }
@@ -721,7 +786,7 @@ public class Catalina {
      * Await and shutdown.
      */
     public void await() {
-
+        //调用org.apache.catalina.core.StandardServer类的await方法
         getServer().await();
 
     }

@@ -52,6 +52,13 @@ import org.apache.tomcat.util.res.StringManager;
  *
  * @author Craig R. McClanahan
  */
+
+/**
+ * ContextConfig 在处理 CONFIGURE_START_EVENT 事件的时候，会使用 FilterDef 保存 Filter 信息。
+ * 而 StandardContext 会把 FilterDef 转化成 ApplicationFilterConfig，
+ * 在 ApplicationFilterConfig 构造方法中完成 Filter 的实例化，并且调用 Filter 接口的 init 方法，
+ * 完成 Filter 的初始化。
+ */
 public final class ApplicationFilterConfig implements FilterConfig, Serializable {
 
     private static final long serialVersionUID = 1L;

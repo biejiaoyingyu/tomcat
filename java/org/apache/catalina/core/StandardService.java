@@ -418,21 +418,39 @@ public class StandardService extends LifecycleMBeanBase implements Service {
         setState(LifecycleState.STARTING);
 
         // Start our defined Container first
+        // 启动Engine，Engine的child容器都会被启动，webapp的部署会在这个步骤完成；
+        /**
+         * 1.StandardEngine、StandardHost、StandardContext、StandardWrapper各个容器存在父子关系，
+         * 一个父容器包含多个子容器，并且一个子容器对应一个父容器。Engine是顶层父容器，它不存在父容器，
+         * 关于各个组件的详细介绍，请参考《tomcat框架设计》。默认情况下，StandardEngine只有一个子容
+         * 器StandardHost，一个StandardContext对应一个webapp应用，而一个StandardWrapper对应一个
+         * webapp里面的一个 Servlet
+         *
+         * 2.StandardEngine、StandardHost、StandardContext、StandardWrapper都是继承至ContainerBase，
+         * 各个容器的启动，都是由父容器调用子容器的start方法，也就是说由StandardEngine启动StandardHost，
+         * 再StandardHost启动StandardContext，以此类推。
+         *
+         * 3.由于它们都是继续至ContainerBase，当调用 start 启动Container容器时，首先会执行 ContainerBase
+         * 的 start 方法，它会寻找子容器，并且在线程池中启动子容器，StandardEngine也不例外。
+         */
         if (engine != null) {
             synchronized (engine) {
                 engine.start();
             }
         }
-
+        //启动Executor，这是tomcat用Lifecycle封装的线程池，继承至
+        // java.util.concurrent.Executor以及tomcat的Lifecycle接口
         synchronized (executors) {
             for (Executor executor: executors) {
                 executor.start();
             }
         }
 
+        // 启动MapperListener
         mapperListener.start();
 
         // Start our defined Connectors second
+        //启动Connector组件，由Connector完成Endpoint的启动，这个时候意味着tomcat可以对外提供请求服务了
         synchronized (connectorsLock) {
             for (Connector connector: connectors) {
                 // If it has already failed, don't try and start it
@@ -511,14 +529,16 @@ public class StandardService extends LifecycleMBeanBase implements Service {
      */
     @Override
     protected void initInternal() throws LifecycleException {
-
+        //往jmx中注册自己
         super.initInternal();
-
+        //// 初始化Engine
         if (engine != null) {
+            //进入
             engine.init();
         }
 
         // Initialize any Executors
+        // 存在Executor线程池，则进行初始化，默认是没有的
         for (Executor executor : findExecutors()) {
             if (executor instanceof JmxEnabled) {
                 ((JmxEnabled) executor).setDomain(getDomain());
@@ -527,9 +547,11 @@ public class StandardService extends LifecycleMBeanBase implements Service {
         }
 
         // Initialize mapper listener
+        // 暂时不知道这个MapperListener的作用
         mapperListener.init();
 
         // Initialize our defined Connectors
+        // 初始化Connector，而Connector又会对ProtocolHandler进行初始化，开启应用端口的监听
         synchronized (connectorsLock) {
             for (Connector connector : connectors) {
                 connector.init();

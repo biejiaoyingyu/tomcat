@@ -1126,6 +1126,8 @@ public class Digester extends DefaultHandler2 {
      * @param list The attributes attached to the element. If there are
      *   no attributes, it shall be an empty Attributes object.
      * @exception SAXException if a parsing error is to be reported
+     *
+     * 这个在什么情况下调用=====>难道解析后就会调用？？？？？
      */
     @Override
     public void startElement(String namespaceURI, String localName, String qName, Attributes list)
@@ -1171,6 +1173,8 @@ public class Digester extends DefaultHandler2 {
                     if (debug) {
                         log.debug("  Fire begin() for " + rule);
                     }
+
+                    //这里
                     rule.begin(namespaceURI, name, list);
                 } catch (Exception e) {
                     log.error("Begin event threw exception", e);

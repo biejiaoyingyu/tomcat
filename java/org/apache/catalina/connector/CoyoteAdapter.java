@@ -299,7 +299,9 @@ public class CoyoteAdapter implements Adapter {
     @Override
     public void service(org.apache.coyote.Request req, org.apache.coyote.Response res)
             throws Exception {
-
+        //标注(1)处代码首先从org.apache.coyote包下的request内部一个8位的数组note[]中取出第一位的对象，强转成Request对象
+        //第一次获取该对象必为null，进入if代码块中由Connector创建出request和response，建立两者的双向关联，以及和第一层次
+        //请求响应的对应关联，最后将生成的请求响应放入8位的note[]对应位
         Request request = (Request) req.getNote(ADAPTER_NOTES);
         Response response = (Response) res.getNote(ADAPTER_NOTES);
 
@@ -334,14 +336,22 @@ public class CoyoteAdapter implements Adapter {
         try {
             // Parse and set Catalina and configuration specific
             // request parameters
+            // 该方法内部根据解析的请求信息对应到正确的Context和Wrapper
             postParseSuccess = postParseRequest(req, request, res, response);
             if (postParseSuccess) {
                 //check valves if we support async
                 request.setAsyncSupported(
                         connector.getService().getContainer().getPipeline().isAsyncSupported());
                 // Calling the container
-                connector.getService().getContainer().getPipeline().getFirst().invoke(
-                        request, response);
+                // 链式调用===》重点
+                // connector.getService()得到Connector的父容器StandardService，由于StandardService是连接Tomcat两大组件的桥梁，
+                // 自然getContainer()又可以得到Container顶层容器StandardEngine
+
+                // 每个Container都存在一个StandardPipeline管道，每个管道中存在一个或者多个Valve阀门。当请求来时会按照容器的父子关系
+                // 依次流入一个个管道，遇到管道中一个个阀门，既然管道有顺序，里面的阀门也有顺序，getPipeline().getFirst()就对应着第
+                // 一个阀门StandardEngineValve，进而调用其invoke(Request, Response)
+
+                connector.getService().getContainer().getPipeline().getFirst().invoke(request, response);
             }
             if (request.isAsync()) {
                 async = true;
@@ -692,6 +702,7 @@ public class CoyoteAdapter implements Adapter {
 
         while (mapRequired) {
             // This will map the the latest version by default
+            //所有的组件实体和组件间关系都保存在Connector的Mapper中
             connector.getService().getMapper().map(serverName, decodedURI,
                     version, request.getMappingData());
 
@@ -717,9 +728,9 @@ public class CoyoteAdapter implements Adapter {
                     .contains(SessionTrackingMode.URL)) {
 
                 // Get the session ID if there was one
-                sessionID = request.getPathParameter(
-                        SessionConfig.getSessionUriParamName(
-                                request.getContext()));
+
+
+                sessionID = request.getPathParameter(SessionConfig.getSessionUriParamName(request.getContext()));
                 if (sessionID != null) {
                     request.setRequestedSessionId(sessionID);
                     request.setRequestedSessionURL(true);

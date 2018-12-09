@@ -167,6 +167,10 @@ public class StandardPipeline extends LifecycleBase implements Pipeline {
      *
      * @exception LifecycleException if this component detects a fatal error
      *  that prevents this component from being used
+     *
+     *  默认使用 StandardPipeline 实现类，它也是一个Lifecycle。在容器启动的时候，
+     *  StandardPipeline 会遍历 Valve 链表，如果 Valve 是 Lifecycle 的子类，则
+     *  会调用其 start 方法启动 Valve 组件，
      */
     @Override
     protected synchronized void startInternal() throws LifecycleException {
@@ -176,9 +180,17 @@ public class StandardPipeline extends LifecycleBase implements Pipeline {
         if (current == null) {
             current = basic;
         }
+
+        /**
+         * tomcat为我们提供了一系列的Valve
+         * – AccessLogValve ---->记录请求日志，默认会开启
+         * – RemoteAddrValve --->可以做访问控制，比如限制IP黑白名单
+         * – RemoteIpValve --->主要用于处理 X-Forwarded-For 请求头，
+     *       用来识别通过HTTP代理或负载均衡方式连接到Web服务器的客户端
+         *   最原始的IP地址的HTTP请求头字段
+         */
         while (current != null) {
-            if (current instanceof Lifecycle)
-                ((Lifecycle) current).start();
+            if (current instanceof Lifecycle) ((Lifecycle) current).start();
             current = current.getNext();
         }
 

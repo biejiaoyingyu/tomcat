@@ -167,6 +167,12 @@ public final class ApplicationFilterChain implements FilterChain {
         }
     }
 
+    //这里
+    //虽然代码比较长但是结构还是很清晰的，主要分为上下两部分。第一部分由整个if块包裹，
+    // pos是当前遍历ApplicationFilter元素对应的数组下标，n为整个数组长度，总的意思就
+    // 是遍历过滤器数组中每一个filter，并依次调用它的doFilter(ServletRequest, ServletResponse)，
+    // 该方法就由我们自己实现了。当所有的filter处理完毕走到第二部分，
+    // 就调用serlvet.service(request, response)。至此Tomcat整个请求响应处理的过程分析完毕
     private void internalDoFilter(ServletRequest request,
                                   ServletResponse response)
         throws IOException, ServletException {

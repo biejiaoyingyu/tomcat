@@ -177,6 +177,8 @@ public interface Lifecycle {
      * Add a LifecycleEvent listener to this component.
      *
      * @param listener The listener to add
+     *
+     * //给该组将添加一个监听器
      */
     public void addLifecycleListener(LifecycleListener listener);
 
@@ -187,6 +189,7 @@ public interface Lifecycle {
      * @return An array containing the life cycle listeners associated with this
      *         life cycle. If this component has no listeners registered, a
      *         zero-length array is returned.
+     * //获取该组件所有已注册的监听器
      */
     public LifecycleListener[] findLifecycleListeners();
 
@@ -195,6 +198,7 @@ public interface Lifecycle {
      * Remove a LifecycleEvent listener from this component.
      *
      * @param listener The listener to remove
+     *  //删除该组件中的一个监听器
      */
     public void removeLifecycleListener(LifecycleListener listener);
 
@@ -210,6 +214,13 @@ public interface Lifecycle {
      *
      * @exception LifecycleException if this component detects a fatal error
      *  that prevents this component from being used
+     *
+     *
+     *
+     *  组件被实例化之后，调用该方法完成初始化工作，发会出以下事件
+     * <ol>
+     *   <li>INIT_EVENT: On the successful completion of component initialization.</li>
+     * </ol>
      */
     public void init() throws LifecycleException;
 
@@ -238,6 +249,9 @@ public interface Lifecycle {
      *
      * @exception LifecycleException if this component detects a fatal error
      *  that prevents this component from being used
+     *
+     *
+     *  在组件投入使用之前调用该方法，先后会发出以下事件：BEFORE_START_EVENT、START_EVENT、AFTER_START_EVENT
      */
     public void start() throws LifecycleException;
 

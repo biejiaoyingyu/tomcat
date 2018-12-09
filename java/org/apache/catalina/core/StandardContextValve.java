@@ -63,6 +63,10 @@ final class StandardContextValve extends ValveBase {
         throws IOException, ServletException {
 
         // Disallow any direct access to resources under WEB-INF or META-INF
+        // 看到第一个if判断对/META-INF/和/WEB-INF目录下的资源进行了过滤，记得我刚学web编程时
+        // 老师让我们把自定义的Servlet放在/WEB-INF下，说是不让直接访问只能内部跳转从而保证安全，
+        // 那不能访问的秘密就是这段代码了。之后调用请求映射的Wrapper，进而invoke管道中的第一个
+        // 阀门，对应的类为StandardWrapperValve
         MessageBytes requestPathMB = request.getRequestPathMB();
         if ((requestPathMB.startsWithIgnoreCase("/META-INF/", 0))
                 || (requestPathMB.equalsIgnoreCase("/META-INF"))
@@ -93,6 +97,8 @@ final class StandardContextValve extends ValveBase {
         if (request.isAsyncSupported()) {
             request.setAsyncSupported(wrapper.getPipeline().isAsyncSupported());
         }
+
+        //
         wrapper.getPipeline().getFirst().invoke(request, response);
     }
 }
