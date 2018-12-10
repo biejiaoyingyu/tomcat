@@ -369,6 +369,8 @@ public class WebappLoader extends LifecycleMBeanBase
      *
      * @exception LifecycleException if this component detects a fatal error
      *  that prevents this component from being used
+     *
+     *  怎么跑到这里来了 start之后===>都是startInternal(套路啊)
      */
     @Override
     protected void startInternal() throws LifecycleException {
@@ -385,6 +387,7 @@ public class WebappLoader extends LifecycleMBeanBase
         // Construct a class loader based on our current repositories list
         try {
 
+            //创建类加载器关键方法
             classLoader = createClassLoader();
             classLoader.setResources(context.getResources());
             classLoader.setDelegate(this.delegate);
@@ -496,6 +499,17 @@ public class WebappLoader extends LifecycleMBeanBase
 
     /**
      * Create associated classLoader.
+     *
+     * loadClass成员变量的值为org.apache.catalina.loader.WebappClassLoader，所以，实际上该类为
+     * 每一个web应用创建了一个WebappClassLoader的实例，该实例的parent就是Shared ClassLoader或者
+     * Common ClassLoader
+     *
+     * 由于类加载的“双亲委派”机制，一个类加载器只能加载本加载器指定的目录以及使用有“继承”关系的父类加
+     * 载器加载过的类，而Tomcat为每一个Web应用创建了一个WebappClassLoader，不同的WebappClassLoader
+     * 是同级关系，不会存在交叉访问的问题，从而达到web应用相互隔离的目的。
+     *
+     * 我们通过查看WebappClassLoader及其父类WebappClassLoaderBase的loadClass()和findClass()分析
+     * 一下Tomcat加载web应用相关类的策略
      */
     private WebappClassLoaderBase createClassLoader()
         throws Exception {

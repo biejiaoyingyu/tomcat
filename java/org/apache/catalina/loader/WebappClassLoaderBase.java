@@ -810,6 +810,10 @@ public abstract class WebappClassLoaderBase extends URLClassLoader
      * @param name The binary name of the class to be loaded
      *
      * @exception ClassNotFoundException if the class was not found
+     *
+     * Tomcat的类加载机制不能算完全“正统”的双亲委派，WebappClassLoader内部重写了loadClass和findClass方法，
+     * 实现了绕过“双亲委派”直接加载web应用内部的资源，
+     * 当然可以通过在Context.xml文件中加上<Loader delegate = "true">开启正统的“双亲委派”加载机制
      */
     @Override
     public Class<?> findClass(String name) throws ClassNotFoundException {
@@ -837,6 +841,7 @@ public abstract class WebappClassLoaderBase extends URLClassLoader
 
         // Ask our superclass to locate this class, if possible
         // (throws ClassNotFoundException if it is not found)
+        //由于hasExternalRepositories和searchExternalFirst默认为false，因此调用findClassInternal(String)方法
         Class<?> clazz = null;
         try {
             if (log.isTraceEnabled())
@@ -858,6 +863,7 @@ public abstract class WebappClassLoaderBase extends URLClassLoader
                     log.trace("      -->RuntimeException Rethrown", e);
                 throw e;
             }
+
             if ((clazz == null) && hasExternalRepositories) {
                 try {
                     clazz = super.findClass(name);
@@ -1211,6 +1217,8 @@ public abstract class WebappClassLoaderBase extends URLClassLoader
             checkStateForClassLoading(name);
 
             // (0) Check our previously loaded local class cache
+            // 首先看name对应的类是否存在缓存中，缓存是一个ConcurrentHashMap<String, ResourceEntry>的集合，
+            // 如果没有缓存执行后面逻辑
             clazz = findLoadedClass0(name);
             if (clazz != null) {
                 if (log.isDebugEnabled())
@@ -1221,6 +1229,7 @@ public abstract class WebappClassLoaderBase extends URLClassLoader
             }
 
             // (0.1) Check our previously loaded class cache
+            //处逻辑，从JVM中查找是否曾今加载过该类，
             clazz = findLoadedClass(name);
             if (clazz != null) {
                 if (log.isDebugEnabled())
@@ -1233,6 +1242,7 @@ public abstract class WebappClassLoaderBase extends URLClassLoader
             // (0.2) Try loading the class with the system class loader, to prevent
             //       the webapp from overriding Java SE classes. This implements
             //       SRV.10.7.2
+            // 这里的代码保证自定义类不会覆盖java基础类库中的类，
             String resourceName = binaryNameToPath(name, false);
 
             ClassLoader javaseLoader = getJavaseClassLoader();
@@ -1286,9 +1296,13 @@ public abstract class WebappClassLoaderBase extends URLClassLoader
                 }
             }
 
+            // 逻辑就是是否进行双亲委派的分叉口，其中delegate默认为false，那么就要看filter(String)方法，
+            // 该方法的内部实际上将待加载类的全路径名称和一个成员变量protected static final String[] packageTriggers
+            // 中的类名进行比较，如果待加载的类名和packageTriggers数组中的内容前缀匹配，则需要委派父类加载，
             boolean delegateLoad = delegate || filter(name, true);
 
             // (1) Delegate to our parent if requested
+            //执行双亲委派机制
             if (delegateLoad) {
                 if (log.isDebugEnabled())
                     log.debug("  Delegating to parent classloader1 " + parent);
@@ -1307,6 +1321,7 @@ public abstract class WebappClassLoaderBase extends URLClassLoader
             }
 
             // (2) Search local repositories
+            //调用重写的findClass(String)方法加载该类
             if (log.isDebugEnabled())
                 log.debug("  Searching local repositories");
             try {

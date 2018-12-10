@@ -140,17 +140,20 @@ public abstract class LifecycleBase implements Lifecycle {
     //因此要考虑并发问题，所以LifecycleBase#init()使用了synchronized锁，并且state是volatile修饰的。
     @Override
     public final synchronized void init() throws LifecycleException {
+        // 检查状态
         if (!state.equals(LifecycleState.NEW)) {
             invalidTransition(Lifecycle.BEFORE_INIT_EVENT);
         }
 
         try {
+            //在子类需要具体实现的initInternal()之前将组件的状态设为了LifecycleState.INITIALIZING
             setStateInternal(LifecycleState.INITIALIZING, null, false);
 
             // 发现这里面就做了一件事情，调用了一下接下来定义的抽象方法initInternal()（第21行）。
             // 实际上看下LifecycleBase的实现类就会发现，所有的组件类几乎都继承了LifecycleBase类，
             // 所以这些组件类一般只会有initInternal方法的定义。
             initInternal();
+            //之后设置为LifecycleState.INITIALIZED
             setStateInternal(LifecycleState.INITIALIZED, null, false);
         } catch (Throwable t) {
             handleSubClassException(t, "lifecycleBase.initFail", toString());
@@ -174,7 +177,10 @@ public abstract class LifecycleBase implements Lifecycle {
     @Override
     public final synchronized void start() throws LifecycleException {
 
-        //start功能的前置校验，这里如果发现start方法已经调用过了，将会记录日志并直接返回
+        // start功能的前置校验，这里如果发现start方法已经调用过了，将会记录日志并直接返回
+
+        // 大多数的生命周期状态都对应一个Lifecycle的LifecycleEvent事件，在Tomcat中容器
+        // 状态改变时会将改变的信息封装成事件传递给“观察者”，
         if (LifecycleState.STARTING_PREP.equals(state) || LifecycleState.STARTING.equals(state) ||
                 LifecycleState.STARTED.equals(state)) {
 
@@ -188,7 +194,9 @@ public abstract class LifecycleBase implements Lifecycle {
             return;
         }
 
-        //如果发现start放的需要做的前置方法没有调用完，或者调用出错，将会先调用这些前置方法。
+
+        // 如果发现start放的需要做的前置方法没有调用完，或者调用出错，将会先调用这些前置方法。
+        // 当组件的状态是LifecycleState.NEW时
         // 完成init初始化
         if (state.equals(LifecycleState.NEW)) {
             init();
