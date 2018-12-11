@@ -526,6 +526,12 @@ public class StandardService extends LifecycleMBeanBase implements Service {
     /**
      * Invoke a pre-startup initialization. This is used to allow connectors
      * to bind to restricted ports under Unix operating environments.
+     *
+     * server.xml中的标签和java类并不是完全一一对应的关系，这里的Container实际上就是将<Engine>、<Host>
+     * 等标签对应类的共性抽取的父接口。因此，StandardService类的初始化过程依然是将初始化的过程“下放”给子容
+     * 器初始化的过程。这就引出了第二个设计模式：责任链设计模式，在这种模式中，通常每个接收者都包含对另一个接
+     * 收者的引用。如果一个对象不能处理该请求，那么它会把相同的请求传给下一个接收者，依此类推。至此，实际上组
+     * 件的初始化流程就分析完了，因为后面组件的初始化也会像上面分析的一样“父传子，子传孙”
      */
     @Override
     protected void initInternal() throws LifecycleException {

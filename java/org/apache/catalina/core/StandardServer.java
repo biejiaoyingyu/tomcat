@@ -1078,7 +1078,11 @@ public final class StandardServer extends LifecycleMBeanBase implements Server {
         }
         // Initialize our defined Services
 
-        //这里将循环调用Server类里内置的Service数组的init方法。
+        // 这里将循环调用Server类里内置的Service数组的init方法。
+        // 一个StandardServer容器下包含一个或多个StandardService对象，
+        // 这里的services[]就是StandardService对象的集合，也就是说Tomcat
+        // 容器的初始化调用了StandardServer容器进行初始化，而StandardServer
+        // 也并没有进行初始化，而是交给了他的子容器StandardService进行初始化，调用init()
         for (int i = 0; i < services.length; i++) {
             services[i].init();
         }

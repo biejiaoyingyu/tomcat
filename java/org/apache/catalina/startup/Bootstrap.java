@@ -144,11 +144,19 @@ public final class Bootstrap {
 
     private void initClassLoaders() {
         try {
+            //猜测createClassLoader(String,ClassLoader)方法可能就是创建Tomcat自定义类加载器的方法之一
             commonLoader = createClassLoader("common", null);
             if( commonLoader == null ) {
                 // no config file, default to this loader - we might be in a 'single' env.
                 commonLoader=this.getClass().getClassLoader();
             }
+
+            // 再看initClassLoaders()方法图中代码，在创建catalinaLoader和sharedLoader时，
+            // 父类加载器传入的实际上就是commonLoader，以此可以验证图1中Catalina ClassLoader、
+            // Shared ClassLoader和Common ClassLoader的父子关系。而common ClassLoader的父
+            // 类加载器参数传递的为null，为什么null就会导致该类加载器的父类加载器为System ClassLoader呢？
+            // null就是系统类加载器啊？
+
             catalinaLoader = createClassLoader("server", commonLoader);
             sharedLoader = createClassLoader("shared", commonLoader);
         } catch (Throwable t) {
@@ -161,6 +169,18 @@ public final class Bootstrap {
 
     private ClassLoader createClassLoader(String name, ClassLoader parent)
         throws Exception {
+        // (1) 根据名称查找特定的配置
+        // 传递的“名称”加上后缀.loader去某个配置文件加载文件，其加载的内容为
+        // ---->/org/apache/catalina/startup/catalina.properties，(在conf配置中的)比如
+        // 要加载 common.loader对应的value，其在文件中的值为
+        // ${catalina.base}/lib,${catalina.base}/lib/*.jar,
+        // ${catalina.home}/lib,${catalina.home}/lib/*.jar，
+        // 也就是说Common ClassLoader要加载的路径是这些，是Tomcat运行要使用的公共组件，
+        // 比如servlet-api.jar、catalina.jar等；
+        // 而我们发现当要加载server.loader和shared.loader时，
+        // 其key在配置文件中的value为空，也就是说，
+        // 默认情况下Catalina ClassLoader和Shared ClassLoader(Tomcat整体类加载体系结构图中红色虚线内)都不存在，
+        // 只有Common ClassLoader
 
         String value = CatalinaProperties.getProperty(name + ".loader");
         if ((value == null) || (value.equals("")))
@@ -194,7 +214,7 @@ public final class Bootstrap {
                 repositories.add(new Repository(repository, RepositoryType.DIR));
             }
         }
-
+        // (2) 类加载器工厂创建特定类加载器，进入
         return ClassLoaderFactory.createClassLoader(repositories, parent);
     }
 
@@ -252,6 +272,7 @@ public final class Bootstrap {
     public void init() throws Exception {
 
         //初始化commonLoader、catalinaLoader、sharedLoader，关于ClassLoader的后面再单独分析
+        //(1)初始化 classLoader，主要进行类加载的初始化以及形成类加载器的关系初始化
         initClassLoaders();
 
         Thread.currentThread().setContextClassLoader(catalinaLoader);
@@ -262,11 +283,19 @@ public final class Bootstrap {
         if (log.isDebugEnabled())
             log.debug("Loading startup class");
         // 反射方法实例化Catalina，后面初始化Catalina也用了很多反射，不知道意图是什么???
+        // (2)  实例化 Catalina 实例
         Class<?> startupClass = catalinaLoader.loadClass("org.apache.catalina.startup.Catalina");
         Object startupInstance = startupClass.getConstructor().newInstance();
 
         // Set the shared extensions class loader
         // 反射调用setParentClassLoader方法，设置其parentClassLoader为sharedLoader
+        // 调用了签名为void setParentClassLoader(ClassLoader parentClassLoader)的方法，
+        // 并传入了Shared ClassLoader，上面我们说过默认情况下Shared ClassLoader就是
+        // Common ClassLoader，因此其传入的参数实际上是Common ClassLoader
+
+        //找到设置parent的方法
+        //最终定位到StandardContext中的synchronized void startInternal() throws LifecycleException方法
+
         if (log.isDebugEnabled()) log.debug("Setting startup class properties");
         String methodName = "setParentClassLoader";
         Class<?> paramTypes[] = new Class[1];
@@ -471,7 +500,7 @@ public final class Bootstrap {
                 //实例化BootStrap
                 Bootstrap bootstrap = new Bootstrap();
                 try {
-                    //执行初始化方法
+                    //执行初始化方法,进入
                     bootstrap.init();
                 } catch (Throwable t) {
                     handleThrowable(t);

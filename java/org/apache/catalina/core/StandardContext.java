@@ -4904,6 +4904,7 @@ public class StandardContext extends ContainerBase
      * @exception LifecycleException if this component detects a fatal error
      *  that prevents this component from being used
      */
+    //这里
     @Override
     protected synchronized void startInternal() throws LifecycleException {
 
@@ -4944,7 +4945,9 @@ public class StandardContext extends ContainerBase
         if (ok) {
             resourcesStart();
         }
-
+        // (1)  为每一个web应用创建一个WebappLoader
+        // 每一个web应用创建一个类加载器，该类加载器的父类加载器就是通过getParentClassLoader()
+        // 得到的Shared ClassLoader(Common ClassLoader)
         if (getLoader() == null) {
             WebappLoader webappLoader = new WebappLoader(getParentClassLoader());
             webappLoader.setDelegate(getDelegate());
@@ -5004,6 +5007,7 @@ public class StandardContext extends ContainerBase
                 // Start our subordinate components, if any
                 Loader loader = getLoader();
                 if (loader instanceof Lifecycle) {
+                    // (2)  调用WebappLoader的start
                     ((Lifecycle) loader).start();
                 }
 

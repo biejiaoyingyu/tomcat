@@ -157,7 +157,7 @@ public final class ClassLoaderFactory {
 
         // Construct the "class path" for this class loader
         Set<URL> set = new LinkedHashSet<>();
-
+        // 加载指定路径下的资源对象
         if (repositories != null) {
             for (Repository repository : repositories)  {
                 if (repository.getType() == RepositoryType.URL) {
@@ -223,7 +223,11 @@ public final class ClassLoaderFactory {
             for (int i = 0; i < array.length; i++) {
                 log.debug("  location " + i + " is " + array[i]);
             }
-
+        //  返回创建的类加载器
+        //  大块的if中的代码实际上是对资源进行转化加载的过程，而return部分
+        //  才是返回类加载器的部分，代码根据是否有parent调用了URLClassLoader
+        //  不同的构造器，Common ClassLoader调用的是没有parent的构造器
+        //  调用本地方法
         return AccessController.doPrivileged(
                 new PrivilegedAction<URLClassLoader>() {
                     @Override
