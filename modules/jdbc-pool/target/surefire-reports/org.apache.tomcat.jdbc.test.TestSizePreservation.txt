@@ -1,0 +1,4 @@
+-------------------------------------------------------------------------------
+Test set: org.apache.tomcat.jdbc.test.TestSizePreservation
+-------------------------------------------------------------------------------
+Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 17.029 sec - in org.apache.tomcat.jdbc.test.TestSizePreservation

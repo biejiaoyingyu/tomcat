@@ -1,0 +1,15 @@
+// ------------------------------------------------------------------
+// Transitive dependencies of this project determined from the
+// maven pom organized by organization.
+// ------------------------------------------------------------------
+
+jdbc-pool
+
+
+From: 'an unknown organization'
+  - juli  org.apache.tomcat:juli:jar:6.0.32
+
+
+
+
+

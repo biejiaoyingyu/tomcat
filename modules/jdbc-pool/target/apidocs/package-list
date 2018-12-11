@@ -1,0 +1,4 @@
+org.apache.tomcat.jdbc.naming
+org.apache.tomcat.jdbc.pool
+org.apache.tomcat.jdbc.pool.interceptor
+org.apache.tomcat.jdbc.pool.jmx

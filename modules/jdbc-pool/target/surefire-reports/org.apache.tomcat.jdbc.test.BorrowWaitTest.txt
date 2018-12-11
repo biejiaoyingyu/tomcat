@@ -1,0 +1,4 @@
+-------------------------------------------------------------------------------
+Test set: org.apache.tomcat.jdbc.test.BorrowWaitTest
+-------------------------------------------------------------------------------
+Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 10.065 sec - in org.apache.tomcat.jdbc.test.BorrowWaitTest

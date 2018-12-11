@@ -103,6 +103,7 @@ public interface Container extends Lifecycle {
     public static final String REMOVE_CHILD_EVENT = "removeChild";
 
 
+
     /**
      * The ContainerEvent event type sent when a valve is removed
      * by <code>removeValve()</code>, if this Container supports pipelines.

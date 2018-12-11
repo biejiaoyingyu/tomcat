@@ -125,6 +125,11 @@
     <!-- You should set jvmRoute to support load-balancing via AJP ie :
     <Engine name="Catalina" defaultHost="localhost" jvmRoute="jvm1">
     -->
+
+    <!--Engine，表示整个Catalina的servlet引擎-->
+    <!--Host，表示一个拥有若干个Context的虚拟主机-->
+    <!--Context，表示一个Web应用，一个context包含一个或多个wrapper-->
+    <!--Wrapper，表示一个独立的servlet-->
     <Engine name="Catalina" defaultHost="localhost">
 
       <!--For clustering, please take a look at documentation at:
@@ -144,15 +149,18 @@
         <Realm className="org.apache.catalina.realm.UserDatabaseRealm"
                resourceName="UserDatabase"/>
       </Realm>
-
-      <Host name="localhost"  appBase="webapps"
-            unpackWARs="true" autoDeploy="true">
+      <!--Host定义了一个虚拟主机，正所谓虚拟主机，当然是可以用来部署应用程序的，Tomcat的Host也是如此。-->
+      <!--它在server.xml中定义了一个localhost的Host，应用根目录在webapps下面，默认是支持解压重新部署的。-->
+      <Host name="localhost"  appBase="webapps" unpackWARs="true" autoDeploy="true">
 
         <!-- SingleSignOn valve, share authentication between web applications
              Documentation at: /docs/config/valve.html -->
         <!--
         <Valve className="org.apache.catalina.authenticator.SingleSignOn" />
         -->
+        <!--Context代表一个独立的web应用，针对每个Context，tomcat都是使用不同的Classloader避免类冲突。-->
+        <!--如果我们希望使用一个自定义的目录作为部署路径的话，可以在server.xml中新增Context即可-->
+        <!--<Context path="/static" docBase="D:/static" reloadable="true"></Context>-->
 
         <!-- Access log processes all example.
              Documentation at: /docs/config/valve.html
