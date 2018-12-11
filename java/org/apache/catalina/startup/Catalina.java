@@ -277,6 +277,8 @@ public class Catalina {
     /**
      * Create and configure the Digester we will be using for startup.
      * @return the main digester to parse server.xml
+     *
+     * 这里很重要===》要考的
      */
     protected Digester createStartDigester() {
         long t1=System.currentTimeMillis();
@@ -302,6 +304,10 @@ public class Catalina {
 
         // Configure the actions we will be using
 
+        // 为解析<Server>标签创建了三个规则ObjectCreateRule、SetPropertiesRule和SetNextRule，
+        // 并指明了<Server>对应对象的实例为org.apache.catalina.core.StandardServer，这三个规
+        // 则最终会被放在规则父类RuleBase类的缓存HashMap<String,List<Rule>> cache中，而Digester
+        // 又持有该类的实例，也就是说Digester最终会装载解析xml文件所需的所有规则
         digester.addObjectCreate("Server",
                                  "org.apache.catalina.core.StandardServer",
                                  "className");
@@ -309,6 +315,8 @@ public class Catalina {
         digester.addSetNext("Server",
                             "setServer",
                             "org.apache.catalina.Server");
+
+
 
         digester.addObjectCreate("Server/GlobalNamingResources",
                                  "org.apache.catalina.deploy.NamingResourcesImpl");
@@ -325,13 +333,34 @@ public class Catalina {
                             "addLifecycleListener",
                             "org.apache.catalina.LifecycleListener");
 
+        // addObjectCreate(String pattern, String className, String attributeName)底层使
+        // 用的规则为ObjectCreateRule，方法的第一个参数是pattern，表明了解析到什么标签才会使用配
+        // 置的规则对标签的内容进行解析，和正则表达式匹配的作用类似。比如上图中的pattern为Server/Service
+        // 表示解析到<Server>下的<Service>标签时运用规则进行解析，这里用/表示一种父子关系。第二个参数
+        // className很明显表示标签对应的java实体类，<Service>标签对应的实体实际上就是
+        // StandardService，其实该参数是一个可选参数，可以传null，用第三个参数attributeName在运行
+        // 时指定该标签对应的类，以图中举例就是说<Service>标签可以存在一个属性，属性名为className，
+        // <Service className = ""> 这么配置
+        // 当第二个参数没有指定时，Digester会自动解析该属性，并通过反射生成该类的实例再压入Digester
+        // 内部的栈顶。
+
         digester.addObjectCreate("Server/Service",
                                  "org.apache.catalina.core.StandardService",
                                  "className");
+        // addSetProperties(String pattern)底层使用的规则为SetPropertiesRule，方法唯一的参数也
+        // 是pattern，同样表示遇到何种标签才进行解析，SetPropertiesRule规则用于解析标签对应的属性。
+        // <Service name = "catalina">
+        // 其属性只有name一个,那我们猜想在StandardService中可能存在一个该属性对应的set方法，
+        // 看下StandardService的代码发现确实如此
+
+        //这里有一个小坑需要说明一下，实际上标签对应的实体类并不一定存在标签属性对应的set方法，
+        // 并且也不是存在对应属性的set方法就会调用，理解这个细节我们需要进入到SetPropertiesRule类
+        // 的begin()方法中
         digester.addSetProperties("Server/Service");
         digester.addSetNext("Server/Service",
                             "addService",
                             "org.apache.catalina.Service");
+
         // 将调用org.apache.catalina.core.StandardServer类的addLifecycleListener方法，
         // 将根据server.xml中配置的Server节点下的Listener节点所定义的className属性构造对
         // 象实例，并作为addLifecycleListener方法的入参。所有的监听器都会实现上面提到的
@@ -602,6 +631,20 @@ public class Catalina {
 
             inputSource.setByteStream(inputStream);
             // 把Catalina作为一个顶级实例
+            // (2)Digester做了一个类似压栈的操作，将当前的Catalina对象压入Catalina类中的
+            // ArrayStack<Object> stack中，根据栈先进后出的特性可知该Catalina对象必定会
+            // 最后一个弹栈，而栈中存放的其他对象实际上就是上面对应标签的java类实例，举个例
+            // 子，如果server.xml中标签的结构为
+            // <Server>
+            //      <Service>
+            //      </Service>
+            // </Server>
+
+            // 那么最后栈中的结构必然是先入栈Catalina实例，然后是<Server>标签对应类的实例，栈
+            // 顶的是<Service>标签的实例。为什么要用这种设计思路存放标签对应的类实例，我理解可
+            // 以想一想SAX方式解析xml文件的特点，SAX对xml文件边扫描边解析，自顶向下依次解析，
+            // 可以看成是深度优先遍历的一种变体，该特性在数据结构的层面上正好用栈完美诠释，这里
+            // 又为什么要将“自己”压入栈底，答案随着分析的深入自会揭晓，现在只需要记住
             digester.push(this);
             // 解析过程会实例化各个组件，比如Server、Container、Connector等
 
@@ -613,6 +656,10 @@ public class Catalina {
             // org.apache.catalina.core.StandardHost、
             // org.apache.catalina.core.StandardContext等等一系列对象，
             // 这些对象从前到后前一个包含后一个对象的引用（一对一或一对多的关系）。
+            // (3)
+
+            // Digester作为SAX的解析类，当解析到Docuemt开始会调用startDocument()方法，
+            // 解析到Element开始会调用startElement()方法
             digester.parse(inputSource);
         } catch (Exception e) {
             if  (file == null) {
@@ -638,6 +685,15 @@ public class Catalina {
         try {
             // 调用Lifecycle的init阶段
             // 二是调用Server接口对象的init方法
+            // (4)代码主要进行各个容器的初始化工作,但是有一个问题，就是这里的getServer()方法返回了Catalina类中的
+            // protected Server server = null;，这个Server实际上就是上面创建的<Server>标签对应的实例StandardServer，
+            // 问题是Tomcat是何时将这个初始值为null的Server赋值的呢？
+
+            // 在Catalina类中确实存在setServer(Server)方法，但查询其调用链时发现该方法并没有被直接调用过，那这个Server
+            // 是如何被赋值的呢？我们要重新看看在解析<Server>标签时Rule起了什么作用，ObjectCreateRule主要生成标签对应的
+            // 类的实例，并将其压栈；SetPropertiesRule主要用于标签参数的解析；SetNextRule处理父子标签对应类方法的调用，
+            // 建立标签实体之间的关联
+
             getServer().init();
         } catch (LifecycleException e) {
             if (Boolean.getBoolean("org.apache.catalina.startup.EXIT_ON_INIT_FAILURE")) {

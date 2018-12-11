@@ -89,6 +89,8 @@ public class ObjectCreateRule extends Rule {
      * @param name the local name if the parser is namespace aware, or just
      *   the element name otherwise
      * @param attributes The attribute list for this element
+     *
+     *  这里======>
      */
     @Override
     public void begin(String namespace, String name, Attributes attributes)
@@ -115,6 +117,8 @@ public class ObjectCreateRule extends Rule {
         // Instantiate the new object and push it on the context stack
         Class<?> clazz = digester.getClassLoader().loadClass(realClassName);
         Object instance = clazz.getConstructor().newInstance();
+        // org.apache.catalina.core.StandardServer，所以<Server>标签实际上就生成了
+        // StandardServer.java的实例，从而建立了标签和类的对应关系，同时将StandardServer实例压栈
         digester.push(instance);
     }
 

@@ -1128,6 +1128,12 @@ public class Digester extends DefaultHandler2 {
      * @exception SAXException if a parsing error is to be reported
      *
      * 这个在什么情况下调用=====>难道解析后就会调用？？？？？
+     *
+     * 此处通过摘要类的实例对已经加载为输入流形式的server.xml进行了解析，上面说过Digester作
+     * 为SAX的解析类，当解析到Docuemt开始会调用startDocument()方法，解析到Element开始会调
+     * 用startElement()方法
+     *
+     *
      */
     @Override
     public void startElement(String namespaceURI, String localName, String qName, Attributes list)
@@ -1164,6 +1170,13 @@ public class Digester extends DefaultHandler2 {
         }
 
         // Fire "begin" events for all relevant rules
+       /* 因为SAX解析会将每一个标签映射成一个Element，下面的代码主要是在标签解析的时候筛选出之
+        * 前为对应标签配置的规则，比如当解析到<Server>标签时，会从上面所说的标签cache中得到为其
+        * 所配置的ObjectCreateRule、SetPropertiesRule和SetNextRule三个规则，然后依次调用对
+        * 应规则的begin方法，同样的Digester在解析到标签的结尾时会调用endElment()方法，在该方法
+        * 中也会有遍历所有规则的流程，与处理标签开始不同的是，结束时会依次调用规则的end方法，这里
+        * 我们仅以ObjectCreateRule的begin方法举例
+        * */
         List<Rule> rules = getRules().match(namespaceURI, match);
         matches.push(rules);
         if ((rules != null) && (rules.size() > 0)) {
@@ -1174,7 +1187,7 @@ public class Digester extends DefaultHandler2 {
                         log.debug("  Fire begin() for " + rule);
                     }
 
-                    //这里
+                    //这里 ObjectCreateBegin
                     rule.begin(namespaceURI, name, list);
                 } catch (Exception e) {
                     log.error("Begin event threw exception", e);

@@ -39,6 +39,7 @@ public class SetPropertiesRule extends Rule {
      * @param theName the local name if the parser is namespace aware, or just
      *   the element name otherwise
      * @param attributes The attribute list for this element
+     * 这里=====》
      */
     @Override
     public void begin(String namespace, String theName, Attributes attributes)
@@ -69,6 +70,9 @@ public class SetPropertiesRule extends Rule {
                         "} Setting property '" + name + "' to '" +
                         value + "'");
             }
+            // 第一个digester.isFakeAtrribute(top, name)，其中top是当前Digester内部
+            // 栈中栈顶元素，对于<Service>而言栈顶元素就是StandardService，name是每一个属性的名称
+            //进入isFakeAttribute()
             if (!digester.isFakeAttribute(top, name)
                     && !IntrospectionUtils.setProperty(top, name, value)
                     && digester.getRulesValidation()) {
