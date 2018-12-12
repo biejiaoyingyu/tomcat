@@ -48,6 +48,10 @@ public final class IntrospectionUtils {
     }
 
     @SuppressWarnings("null") // setPropertyMethodVoid is not null when used
+
+    // 方法中将原始的方法名通过capitalize进行首字母大写处理，最终加上set前缀赋给setter变量。
+    // 之后会根据类的实例得到对象所有的方法，并与setter进行匹配，匹配成功则直接invoke调用并
+    // 返回true，没有找到对应属性的set方法则返回false。
     public static boolean setProperty(Object o, String name, String value,
             boolean invokeSetProperty) {
         if (log.isDebugEnabled())

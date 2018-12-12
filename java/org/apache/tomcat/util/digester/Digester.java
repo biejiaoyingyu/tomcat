@@ -744,6 +744,15 @@ public class Digester extends DefaultHandler2 {
      * @param object The object
      * @param name The attribute name
      * @return <code>true</code> if this is a fake attribute
+     *
+     * 该方法实际上就是在一个Map<Class,List<String>>的集合中判断某个类是否存在某个名称的属性，
+     * 如果存在就返回true，进而不去调用该属性的set方法，那么有哪些属性被放在了这个“假属性”集合
+     * 中呢？我们回头看Catalina中定义server.xml解析规则的方法
+     *
+     * Tomcat在创建Digester类之前默认添加了key为Object.class的entry，其value为包含className
+     * 的集合，如果标签没有设置特定的fake attributes，那么总会返回默认的，包含名称为className的
+     * 集合。而正常情况下所有的标签都是没有设置特定的fake attributes的，也就是说Digester在解析所
+     * 有标签时都会排除名称为className的属性
      */
     public boolean isFakeAttribute(Object object, String name) {
         if (fakeAttributes == null) {

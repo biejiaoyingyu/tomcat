@@ -55,6 +55,16 @@ public class ConnectorCreateRule extends Rule {
      *
      * 所以在碰到server.xml文件中的Server/Service/Connector节点时将会触发ConnectorCreateRule类的begin方法的调用
      */
+
+    // 方法中首先取出此时栈顶元素StandardService(Connector尚未创建)，再从包含所有<Connector>标签属
+    // 性的attributes中查找是否存在exector属性，存在最终会调用_setExecutor(Connector, Executor)方
+    // 法，该方法的主要作用是设置处理端到端连接的线程池，默认情况下server.xml中并不会事先设置该线程池，
+    // 但即便不设置，之后在Tomcat启动时也会默认创建一个，在后面分析启动流程时会详细分析，这里暂先按默认
+    // 未设置线程池流程走。之后会根据protocol属性创建Connector对象，基于Tomcat架构中各个组件及组件间
+    // 关系中给出的server.xml可知，<Connector>标签共有两种协议，一种是HTTP/1.1，另一种是AJP/1.3。
+    // 前者大家很清楚是HTTP协议的1.1版本，后者一般用于web容器之间通信，比HTTP协议在web容器间拥有更高的
+    // 吞吐量。因为存在两种协议，那就会存在两个Connector实体，为了突出重点，我们只分析最常用的HTTP协议
+    // 对应的Connector初始化流程
     @Override
     public void begin(String namespace, String name, Attributes attributes) throws Exception {
         Service svc = (Service)digester.peek();

@@ -70,6 +70,8 @@ public class Connector extends LifecycleMBeanBase  {
 
     /**
      * Defaults to using HTTP/1.1 NIO implementation.
+     *
+     * //默认使用HTTP/1.1 NIO
      */
     public Connector() {
         this("org.apache.coyote.http11.Http11NioProtocol");
@@ -78,7 +80,7 @@ public class Connector extends LifecycleMBeanBase  {
 
     public Connector(String protocol) {
         boolean aprConnector = AprLifecycleListener.isAprAvailable() && AprLifecycleListener.getUseAprConnector();
-
+        //指定协议，server.xml的protocol属性，digest在解析的时候将这个属性传进来
         if ("HTTP/1.1".equals(protocol) || protocol == null) {
             //设置协议名称
             if (aprConnector) {
@@ -102,6 +104,7 @@ public class Connector extends LifecycleMBeanBase  {
         try {
             //反射创建协议对象
             Class<?> clazz = Class.forName(protocolHandlerClassName);
+            //ProtocolHandler 类在处理请求响应的流程中起到了重要作用
             p = (ProtocolHandler) clazz.getConstructor().newInstance();
         } catch (Exception e) {
             log.error(sm.getString("coyoteConnector.protocolHandlerInstantiationFailed"), e);

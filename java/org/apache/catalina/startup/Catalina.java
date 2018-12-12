@@ -279,6 +279,12 @@ public class Catalina {
      * @return the main digester to parse server.xml
      *
      * 这里很重要===》要考的
+     *
+     * --------------Rule-------------- 对应方法------------------用途------------
+     * --------ObjectCreateRule-----addObjectCreate----根据匹配解析模式创建对应标签的实体类
+     * -------SetPropertiesRule-----addSetProperties----根据匹配解析模式为对应标签实体类设置相关属性
+     * ----------SetNextRule-----------addSetNext--------建立标签对应实体之间子父类关系
+     *
      */
     protected Digester createStartDigester() {
         long t1=System.currentTimeMillis();
@@ -353,10 +359,17 @@ public class Catalina {
         // 其属性只有name一个,那我们猜想在StandardService中可能存在一个该属性对应的set方法，
         // 看下StandardService的代码发现确实如此
 
-        //这里有一个小坑需要说明一下，实际上标签对应的实体类并不一定存在标签属性对应的set方法，
+        // 这里有一个小坑需要说明一下，实际上标签对应的实体类并不一定存在标签属性对应的set方法，
         // 并且也不是存在对应属性的set方法就会调用，理解这个细节我们需要进入到SetPropertiesRule类
         // 的begin()方法中
+
         digester.addSetProperties("Server/Service");
+
+        // 解析规则addSetNext(String pattern, String methodName, String paramType)，底层
+        // 使用的规则为SetNextRule，方法的第一个参数指明了触发该规则的具体模式，第二个参数表明调
+        // 用父标签对应实体的方法名称，第三个参数就是方法参数的类型。在这里因为当前栈顶元素为StandardService，
+        // addSetNext会调用StandardServer的addService(Service service)方法，将当前StandardService
+        // 与其父元素StandardServer建立关联
         digester.addSetNext("Server/Service",
                             "addService",
                             "org.apache.catalina.Service");
@@ -384,10 +397,15 @@ public class Catalina {
                             "addExecutor",
                             "org.apache.catalina.Executor");
 
-        //server.xml中的connector节点时是这么处理的：
+        // server.xml中的connector节点时是这么处理的：
+        // 创建<Connector>对象的规则和<Service>规则不太一样，并没有使用Digester內建的ObjectCreateRule，
+        // 而是自己继承Rule创建了ConnectorCreateRule，解析到对应标签的开始处会调用规则类的begin()
         digester.addRule("Server/Service/Connector", new ConnectorCreateRule());
+        // <Connector>在处理属性是也添加了名为SetAllPropertiesRule的规则，该规则接收了一个排除属性的数组，
+        // 其中仅包含executor属性
         digester.addRule("Server/Service/Connector",
                 new SetAllPropertiesRule(new String[]{"executor", "sslImplementationName", "protocol"}));
+        //会设置调用的方法===》参数里面有文章
         digester.addSetNext("Server/Service/Connector",
                             "addConnector",
                             "org.apache.catalina.connector.Connector");
@@ -441,6 +459,7 @@ public class Catalina {
 
         // Add RuleSets for nested elements
         digester.addRuleSet(new NamingRuleSet("Server/GlobalNamingResources/"));
+        // 这里和上面有什么区别digester.addRule()
         digester.addRuleSet(new EngineRuleSet("Server/Service/"));
         digester.addRuleSet(new HostRuleSet("Server/Service/Engine/"));
         digester.addRuleSet(new ContextRuleSet("Server/Service/Engine/Host/"));

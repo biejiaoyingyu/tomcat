@@ -51,6 +51,9 @@ public class SetAllPropertiesRule extends Rule {
      * @param attributes The attributes of this element
      *
      * @exception Exception if a processing error occurs
+     *
+     * begin()方法中不仅按上面提到的流程对属性进行了筛选，而且根据该规则中设置的排除属性数组再一次进行了过滤。
+     * 同样的，在addSetNext方法中会调用父标签StandardService的addConnector(Connector)，从而建立父子关联关系
      */
     @Override
     public void begin(String namespace, String nameX, Attributes attributes)

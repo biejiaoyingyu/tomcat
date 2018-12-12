@@ -210,6 +210,14 @@ public class StandardService extends LifecycleMBeanBase implements Service {
      * with this Service's Container.
      *
      * @param connector The Connector to be added
+     *
+     * 这里====》在方法中使用了synchronized代码块解决了并发访问下新增Connector被覆盖的问题，
+     * 在Tomcat的生命周期中说到，每一个容器都一个生命周期状态的概念，这里getState()就获得了此
+     * 时Connector的状态，在刚创建时容器的state为NEW，available属性值为false，并不会立即启
+     * 动Connector容器，至此<Connector>的解析过程也分析完毕
+     * Tomcat从整体架构上可以分为两大部分：监听请求并生成对应Request和Response的Connector连
+     * 接器，以及处理请求和控制tomcat容器运转的Container。<Engine>标签就是Container的顶层组
+     * 件，每一个Engine相当于一个Servlet引擎，其下可以存在多个Host和Context子容器
      */
     @Override
     public void addConnector(Connector connector) {

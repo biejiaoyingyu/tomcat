@@ -26,6 +26,10 @@ import org.apache.tomcat.util.digester.RuleSet;
  * <code>HostRuleSet</code>.</p>
  *
  * @author Craig R. McClanahan
+ *
+ * 乍一看貌似<Engine>相关的rule特别多，但仔细一看其实都是套路，按照上面的分析方式都能一一拿下，
+ * 这里只说一些重点和不同的部分。规则中为<Engine>添加了一个名为EngineConfig的Listener，用于
+ * 对StandardEngine组件的生命周期监控
  */
 public class EngineRuleSet implements RuleSet {
 
@@ -78,6 +82,8 @@ public class EngineRuleSet implements RuleSet {
                                  "org.apache.catalina.core.StandardEngine",
                                  "className");
         digester.addSetProperties(prefix + "Engine");
+        //Cluster configuration end
+        //规则中为<Engine>添加了一个名为EngineConfig的Listener，用于对StandardEngine组件的生命周期监控
         digester.addRule(prefix + "Engine",
                          new LifecycleListenerRule
                          ("org.apache.catalina.startup.EngineConfig",
@@ -94,11 +100,11 @@ public class EngineRuleSet implements RuleSet {
         digester.addSetNext(prefix + "Engine/Cluster",
                             "setCluster",
                             "org.apache.catalina.Cluster");
-        //Cluster configuration end
 
         digester.addObjectCreate(prefix + "Engine/Listener",
                                  null, // MUST be specified in the element
                                  "className");
+
         digester.addSetProperties(prefix + "Engine/Listener");
         digester.addSetNext(prefix + "Engine/Listener",
                             "addLifecycleListener",

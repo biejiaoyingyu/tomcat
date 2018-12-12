@@ -70,9 +70,12 @@ public class SetPropertiesRule extends Rule {
                         "} Setting property '" + name + "' to '" +
                         value + "'");
             }
-            // 第一个digester.isFakeAtrribute(top, name)，其中top是当前Digester内部
+
+            // 这里有3个判断：
+            // 其中第一个判断：digester.isFakeAtrribute(top, name)，其中top是当前Digester内部
             // 栈中栈顶元素，对于<Service>而言栈顶元素就是StandardService，name是每一个属性的名称
-            //进入isFakeAttribute()
+            // 进入isFakeAttribute()
+            // 第二个判断：有些标签即便配置了相关的属性也不会调用对应类的set方法,==》进入
             if (!digester.isFakeAttribute(top, name)
                     && !IntrospectionUtils.setProperty(top, name, value)
                     && digester.getRulesValidation()) {
