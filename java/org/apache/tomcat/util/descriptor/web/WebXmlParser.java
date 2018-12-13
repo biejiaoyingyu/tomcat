@@ -16,9 +16,6 @@
  */
 package org.apache.tomcat.util.descriptor.web;
 
-import java.io.IOException;
-import java.net.URL;
-
 import org.apache.juli.logging.Log;
 import org.apache.juli.logging.LogFactory;
 import org.apache.tomcat.util.descriptor.DigesterFactory;
@@ -28,6 +25,9 @@ import org.apache.tomcat.util.digester.Digester;
 import org.apache.tomcat.util.res.StringManager;
 import org.xml.sax.InputSource;
 import org.xml.sax.SAXParseException;
+
+import java.io.IOException;
+import java.net.URL;
 
 public class WebXmlParser {
 
@@ -54,13 +54,23 @@ public class WebXmlParser {
     private final WebRuleSet webFragmentRuleSet;
 
 
+    /**
+     *
+     * @param namespaceAware
+     * @param validation
+     * @param blockExternal
+     */
     public WebXmlParser(boolean namespaceAware, boolean validation,
             boolean blockExternal) {
         webRuleSet = new WebRuleSet(false);
         webDigester = DigesterFactory.newDigester(validation,
                 namespaceAware, webRuleSet, blockExternal);
         webDigester.getParser();
-
+        //在这里
+        //WebRuleSet同样继承了RuleSet，web.xml存在两种形式，一种是我们“通常”意义上，
+        // 放在每一个war包内的webapps/WEB-INF/web.xml，该配置文件是以<web-app>作
+        // 为根元素的；另一种是为了支持Servlet3.0新特性将web.xml分成多个小部分，运行时
+        // 再将各个部分聚集起来解析的配置文件web-fragment.xml，该文件是以<web-fragment>作为根元素。
         webFragmentRuleSet = new WebRuleSet(true);
         webFragmentDigester = DigesterFactory.newDigester(validation,
                 namespaceAware, webFragmentRuleSet, blockExternal);

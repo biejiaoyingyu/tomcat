@@ -71,6 +71,9 @@ public class HostRuleSet implements RuleSet {
      * @param digester Digester instance to which the new Rule instances
      *  should be added.
      */
+    //<Host>对应的实体类为StandardHost，在初始化时也给Host容器中的管道添加了一个基础
+    // 阀门StandardHostValve。同StandardEngine一样，Tomcat也为StandardHost添加
+    // 了一个监听器HostConfig，但其功能远比EngineConfig复杂很多
     @Override
     public void addRuleInstances(Digester digester) {
 

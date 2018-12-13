@@ -16,51 +16,7 @@
  */
 package org.apache.catalina.startup;
 
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
-import java.io.IOException;
-import java.io.InputStream;
-import java.net.MalformedURLException;
-import java.net.URISyntaxException;
-import java.net.URL;
-import java.net.URLConnection;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Map.Entry;
-import java.util.Properties;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
-
-import javax.servlet.MultipartConfigElement;
-import javax.servlet.ServletContainerInitializer;
-import javax.servlet.ServletContext;
-import javax.servlet.SessionCookieConfig;
-import javax.servlet.annotation.HandlesTypes;
-
-import org.apache.catalina.Authenticator;
-import org.apache.catalina.Container;
-import org.apache.catalina.Context;
-import org.apache.catalina.Engine;
-import org.apache.catalina.Globals;
-import org.apache.catalina.Host;
-import org.apache.catalina.Lifecycle;
-import org.apache.catalina.LifecycleEvent;
-import org.apache.catalina.LifecycleListener;
-import org.apache.catalina.Pipeline;
-import org.apache.catalina.Server;
-import org.apache.catalina.Service;
-import org.apache.catalina.Valve;
-import org.apache.catalina.WebResource;
-import org.apache.catalina.WebResourceRoot;
-import org.apache.catalina.Wrapper;
+import org.apache.catalina.*;
 import org.apache.catalina.core.StandardContext;
 import org.apache.catalina.core.StandardHost;
 import org.apache.catalina.util.ContextName;
@@ -71,37 +27,11 @@ import org.apache.tomcat.Jar;
 import org.apache.tomcat.JarScanType;
 import org.apache.tomcat.JarScanner;
 import org.apache.tomcat.util.ExceptionUtils;
-import org.apache.tomcat.util.bcel.classfile.AnnotationElementValue;
-import org.apache.tomcat.util.bcel.classfile.AnnotationEntry;
-import org.apache.tomcat.util.bcel.classfile.ArrayElementValue;
-import org.apache.tomcat.util.bcel.classfile.ClassFormatException;
-import org.apache.tomcat.util.bcel.classfile.ClassParser;
-import org.apache.tomcat.util.bcel.classfile.ElementValue;
-import org.apache.tomcat.util.bcel.classfile.ElementValuePair;
-import org.apache.tomcat.util.bcel.classfile.JavaClass;
+import org.apache.tomcat.util.bcel.classfile.*;
 import org.apache.tomcat.util.buf.UriUtil;
 import org.apache.tomcat.util.descriptor.InputSourceUtil;
 import org.apache.tomcat.util.descriptor.XmlErrorHandler;
-import org.apache.tomcat.util.descriptor.web.ContextEjb;
-import org.apache.tomcat.util.descriptor.web.ContextEnvironment;
-import org.apache.tomcat.util.descriptor.web.ContextLocalEjb;
-import org.apache.tomcat.util.descriptor.web.ContextResource;
-import org.apache.tomcat.util.descriptor.web.ContextResourceEnvRef;
-import org.apache.tomcat.util.descriptor.web.ContextService;
-import org.apache.tomcat.util.descriptor.web.ErrorPage;
-import org.apache.tomcat.util.descriptor.web.FilterDef;
-import org.apache.tomcat.util.descriptor.web.FilterMap;
-import org.apache.tomcat.util.descriptor.web.FragmentJarScannerCallback;
-import org.apache.tomcat.util.descriptor.web.JspPropertyGroup;
-import org.apache.tomcat.util.descriptor.web.LoginConfig;
-import org.apache.tomcat.util.descriptor.web.MessageDestinationRef;
-import org.apache.tomcat.util.descriptor.web.MultipartDef;
-import org.apache.tomcat.util.descriptor.web.SecurityConstraint;
-import org.apache.tomcat.util.descriptor.web.SecurityRoleRef;
-import org.apache.tomcat.util.descriptor.web.ServletDef;
-import org.apache.tomcat.util.descriptor.web.SessionConfig;
-import org.apache.tomcat.util.descriptor.web.WebXml;
-import org.apache.tomcat.util.descriptor.web.WebXmlParser;
+import org.apache.tomcat.util.descriptor.web.*;
 import org.apache.tomcat.util.digester.Digester;
 import org.apache.tomcat.util.digester.RuleSet;
 import org.apache.tomcat.util.file.ConfigFileLoader;
@@ -110,6 +40,20 @@ import org.apache.tomcat.util.res.StringManager;
 import org.apache.tomcat.util.scan.JarFactory;
 import org.xml.sax.InputSource;
 import org.xml.sax.SAXParseException;
+
+import javax.servlet.MultipartConfigElement;
+import javax.servlet.ServletContainerInitializer;
+import javax.servlet.ServletContext;
+import javax.servlet.SessionCookieConfig;
+import javax.servlet.annotation.HandlesTypes;
+import java.io.*;
+import java.net.MalformedURLException;
+import java.net.URISyntaxException;
+import java.net.URL;
+import java.net.URLConnection;
+import java.util.*;
+import java.util.Map.Entry;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Startup event listener for a <b>Context</b> that configures the properties
@@ -291,6 +235,10 @@ public class ContextConfig implements LifecycleListener {
      * Process events for an associated Context.
      *
      * @param event The lifecycle event that has occurred
+     *
+     * 标签对应的实体是StandardContext，也存在基础阀门StandardContextValve，添加了对应的监听器
+     * ContextConfig，在对该监听器进行说明之前不知道大家想过没有，到目前为止，我们一直在讨论server.xml
+     * 文件的解析，那其他的xml文件，比如context.xml、web.xml是什么时候解析的呢
      */
     @Override
     public void lifecycleEvent(LifecycleEvent event) {
@@ -303,6 +251,8 @@ public class ContextConfig implements LifecycleListener {
             return;
         }
 
+        // Lifecycle.AFTER_INIT_EVENT发生在Lifecycle.CONFIGURE_START_EVENT之前，
+        // 而前者的init()中就定义了解析web.xml文件的所有规则===>这版本在 configureStart()中定义
         // Process the event that has occurred
         if (event.getType().equals(Lifecycle.CONFIGURE_START_EVENT)) {
             configureStart();
@@ -1107,6 +1057,8 @@ public class ContextConfig implements LifecycleListener {
         /**
          * 首先，是通过 WebXmlParser 对 web.xml 进行解析，如果存在 web.xml 文件，
          * 则会把文件中定义的 Servlet、Filter、Listener 注册到 WebXml 实例中
+         *
+         * 这里进去
          */
         WebXmlParser webXmlParser = new WebXmlParser(context.getXmlNamespaceAware(),
                 context.getXmlValidation(), context.getXmlBlockExternal());

@@ -16,18 +16,13 @@
  */
 package org.apache.tomcat.util.descriptor.web;
 
-import java.lang.reflect.Method;
-import java.util.ArrayList;
-
 import org.apache.tomcat.util.IntrospectionUtils;
-import org.apache.tomcat.util.digester.CallMethodRule;
-import org.apache.tomcat.util.digester.CallParamRule;
-import org.apache.tomcat.util.digester.Digester;
-import org.apache.tomcat.util.digester.Rule;
-import org.apache.tomcat.util.digester.RuleSet;
-import org.apache.tomcat.util.digester.SetNextRule;
+import org.apache.tomcat.util.digester.*;
 import org.apache.tomcat.util.res.StringManager;
 import org.xml.sax.Attributes;
+
+import java.lang.reflect.Method;
+import java.util.ArrayList;
 
 /**
  * <p><strong>RuleSet</strong> for processing the contents of a web application
@@ -160,6 +155,19 @@ public class WebRuleSet implements RuleSet {
      * @param digester Digester instance to which the new Rule instances
      *  should be added.
      */
+    //     WebRuleSet同样继承了RuleSet，web.xml存在两种形式，一种是我们“通常”意义上，放在每一个
+    //     war包内的webapps/WEB-INF/web.xml，该配置文件是以<web-app>作为根元素的；另一种是为了
+    //     支持Servlet3.0新特性将web.xml分成多个小部分，运行时再将各个部分聚集起来解析的配置文件
+    //     web-fragment.xml，该文件是以<web-fragment>作为根元素。
+
+    // 其中的fullPrefix对应的就是上面两种xml文件的根元素。这里需要引入Digester中另外两个内置解析规则
+    // 类CallMethodRule和CallParamRule，分别来源于digester.addCallMethod(String pattern,
+    // String methodName, int paramCount)和digester.addCallParam(String pattern, int paramIndex)，
+    // 前者如果pattern匹配成功，会调用当前栈顶元素的名为methodName，属性数量为paramCount的方法；后者
+    // 需要与前者配合使用，其含义为找到与pattern匹配的标签对应的值，该值作为前者调用方法的第paramIndex参数的值传入
+
+    //还可以知道<filter>对应的实体为FilterDef，<filter-mapping>对应的实体为FilterMap，<servlet>对应的实体
+    // 又在ServletDefCreateRule中给出定义，为ServletDef。
     @Override
     public void addRuleInstances(Digester digester) {
         digester.addRule(fullPrefix,
@@ -198,6 +206,10 @@ public class WebRuleSet implements RuleSet {
                                    "setResponseCharacterEncoding", 0);
         }
 
+        // <context-param>的含义，当解析到第一句时会调用此时digester内部栈栈顶元素的
+        // addContextParam(String param, String value)方法，该方法有两个参数，当
+        // 解析到子标签<param-name>时，将该标签的值对应方法中的第一个参数param，当解析
+        // 到子标签<param-value>时，将该标签的值对应方法中的第二个参数value
         digester.addCallMethod(fullPrefix + "/context-param",
                                "addContextParam", 2);
         digester.addCallParam(fullPrefix + "/context-param/param-name", 0);

@@ -17,20 +17,6 @@
 package org.apache.catalina.startup;
 
 
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.lang.reflect.Constructor;
-import java.net.ConnectException;
-import java.net.Socket;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.logging.LogManager;
-
 import org.apache.catalina.Container;
 import org.apache.catalina.LifecycleException;
 import org.apache.catalina.LifecycleState;
@@ -51,6 +37,16 @@ import org.apache.tomcat.util.log.SystemLogHandler;
 import org.apache.tomcat.util.res.StringManager;
 import org.xml.sax.Attributes;
 import org.xml.sax.InputSource;
+
+import java.io.*;
+import java.lang.reflect.Constructor;
+import java.net.ConnectException;
+import java.net.Socket;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.logging.LogManager;
 
 
 /**
@@ -459,9 +455,12 @@ public class Catalina {
 
         // Add RuleSets for nested elements
         digester.addRuleSet(new NamingRuleSet("Server/GlobalNamingResources/"));
-        // 这里和上面有什么区别digester.addRule()
+        // 这里和上面有什么区别digester.addRule(),这里面有故事的
         digester.addRuleSet(new EngineRuleSet("Server/Service/"));
+        //一个<Host>表示一个虚拟主机，其下可以存在多个<Context>标签，<Host>标签对应的规则定义如下
         digester.addRuleSet(new HostRuleSet("Server/Service/Engine/"));
+        // 一个<Context>可以认为对应一个webapps下的目录，或者一个war包。代表虚拟主机的<Host>下可以存
+        // 在多个<Context>标签，<Context>对应的解析规则也是继承RuleSetBase创建了自己的规则集合ContextRuleSet
         digester.addRuleSet(new ContextRuleSet("Server/Service/Engine/Host/"));
         addClusterRuleSet(digester, "Server/Service/Engine/Host/Cluster/");
         digester.addRuleSet(new NamingRuleSet("Server/Service/Engine/Host/Context/"));

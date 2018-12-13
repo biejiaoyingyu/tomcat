@@ -16,32 +16,19 @@
  */
 package org.apache.catalina.core;
 
-import java.beans.PropertyChangeEvent;
-import java.beans.PropertyChangeListener;
-import java.io.File;
-import java.util.Locale;
-import java.util.concurrent.atomic.AtomicReference;
-
-import org.apache.catalina.AccessLog;
-import org.apache.catalina.Container;
-import org.apache.catalina.ContainerEvent;
-import org.apache.catalina.ContainerListener;
-import org.apache.catalina.Context;
-import org.apache.catalina.Engine;
-import org.apache.catalina.Host;
-import org.apache.catalina.Lifecycle;
-import org.apache.catalina.LifecycleEvent;
-import org.apache.catalina.LifecycleException;
-import org.apache.catalina.LifecycleListener;
-import org.apache.catalina.Realm;
-import org.apache.catalina.Server;
-import org.apache.catalina.Service;
+import org.apache.catalina.*;
 import org.apache.catalina.connector.Request;
 import org.apache.catalina.connector.Response;
 import org.apache.catalina.realm.NullRealm;
 import org.apache.catalina.util.ServerInfo;
 import org.apache.juli.logging.Log;
 import org.apache.juli.logging.LogFactory;
+
+import java.beans.PropertyChangeEvent;
+import java.beans.PropertyChangeListener;
+import java.io.File;
+import java.util.Locale;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Standard implementation of the <b>Engine</b> interface.  Each
@@ -50,6 +37,8 @@ import org.apache.juli.logging.LogFactory;
  * You can set the jvmRoute direct or with the System.property <b>jvmRoute</b>.
  *
  * @author Craig R. McClanahan
+ *
+ * ====>这里
  */
 public class StandardEngine extends ContainerBase implements Engine {
 
@@ -64,14 +53,24 @@ public class StandardEngine extends ContainerBase implements Engine {
     public StandardEngine() {
 
         super();
+
+        // 内部设计了Pipeline和Valve的概念，相当于Servlet中的Filter和FilterChain，管道中可以
+        // 通过addValve(Valve)添加或通过removeValve(Valve)移除多个阀门，而有一种阀门被称为基
+        // 础阀门，该阀门总是最后一个执行的，比如这里的StandardEngineValve
+
         pipeline.setBasic(new StandardEngineValve());
         /* Set the jmvRoute using the system property jvmRoute */
         try {
+            // setJvmRoute()是给该机器设置一个唯一的标识，当有多台机器组成cluster时，每台机器都会
+            // 用这唯一的标识代表自身在集群中的位置
             setJvmRoute(System.getProperty("jvmRoute"));
         } catch(Exception ex) {
             log.warn(sm.getString("standardEngine.jvmRouteFail"));
         }
         // By default, the engine will hold the reloading thread
+        // 参数backgroundProcessorDelay和ContainerBase中的内部类ContainerBackgroundProcessor有关，
+        // 该类实现了Runnable接口，用于检测war包中的类文件是否改动，是否需要重新加载，而参数乘以默认的基数
+        // 就是执行的间隔时间，
         backgroundProcessorDelay = 10;
 
     }

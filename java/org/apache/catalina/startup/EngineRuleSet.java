@@ -91,7 +91,6 @@ public class EngineRuleSet implements RuleSet {
         digester.addSetNext(prefix + "Engine",
                             "setContainer",
                             "org.apache.catalina.Engine");
-
         //Cluster configuration start
         digester.addObjectCreate(prefix + "Engine/Cluster",
                                  null, // MUST be specified in the element
@@ -111,6 +110,9 @@ public class EngineRuleSet implements RuleSet {
                             "org.apache.catalina.LifecycleListener");
 
 
+        // Tomcat还为每一个StandardEngine添加了RealmRuleSet，该规则对应<Engine>的子标签<Realm>，
+        // 此标签引出了一个“域”的概念，我们可以将多个web应用划分成多个域，给每个域设定不同的访问权限，
+        // 只有拥有对应域访问权限的角色才能访问对应的web应用，因此该规则的设定主要为了安全访问和权限管理
         digester.addRuleSet(new RealmRuleSet(prefix + "Engine/"));
 
         digester.addObjectCreate(prefix + "Engine/Valve",
