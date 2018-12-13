@@ -541,13 +541,16 @@ public class StandardService extends LifecycleMBeanBase implements Service {
      * 收者的引用。如果一个对象不能处理该请求，那么它会把相同的请求传给下一个接收者，依此类推。至此，实际上组
      * 件的初始化流程就分析完了，因为后面组件的初始化也会像上面分析的一样“父传子，子传孙”
      */
+
+    // 责任链开始必定是由外到内的过程，当最内层执行完一定返回上一层，也就是再经历由内到外的逆向过程，
+    // 我们来看看在逆向的过程中发生了什么（暂且忽略StandardService的initInternal()的剩下部分）
     @Override
     protected void initInternal() throws LifecycleException {
         //往jmx中注册自己
         super.initInternal();
-        //// 初始化Engine
+        //// 初始化Engine===》这里就是container
         if (engine != null) {
-            //进入
+            //1.server 进入
             engine.init();
         }
 
@@ -568,6 +571,7 @@ public class StandardService extends LifecycleMBeanBase implements Service {
         // 初始化Connector，而Connector又会对ProtocolHandler进行初始化，开启应用端口的监听
         synchronized (connectorsLock) {
             for (Connector connector : connectors) {
+                //2.connector
                 connector.init();
             }
         }

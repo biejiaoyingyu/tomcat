@@ -955,6 +955,12 @@ public class Connector extends LifecycleMBeanBase  {
 
         // Initialize adapter
         // 初始化Coyote适配器，这个适配器是用于Coyote的Request、Response与HttpServlet的Request、Response适配的
+
+        // CoyoteAdapter可以理解为Connector和Container之间的桥梁，也就是说将Connector中接收的请求交给Container一
+        // 系列容器处理的流程就是该类负责的，这里将当前的Connector实例通过构造器传递给了CoyoteAdapter，又因为
+        // Connector和StandardService存在双向关联关系，那么我们就可以在CoyoteAdapter中得到Connector对应的
+        // StandardService，进而得到StandardService下的StandardEngine，并将request交于一系列容器进行处理，
+
         adapter = new CoyoteAdapter(this);
         // protocolHandler需要指定Adapter用于处理请求
         protocolHandler.setAdapter(adapter);
@@ -985,6 +991,8 @@ public class Connector extends LifecycleMBeanBase  {
 
         try {
             // 初始化ProtocolHandler，这个init不是Lifecycle定义的init，而是ProtocolHandler接口的init
+            // 默认情况protocolHandler就是Http11Protocol的实例,该实例是在Digester解析
+            // ConnectorCreateRule时创建Connector对象的同时创建的
             protocolHandler.init();
         } catch (Exception e) {
             throw new LifecycleException(

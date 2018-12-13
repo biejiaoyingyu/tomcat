@@ -130,26 +130,35 @@ public abstract class LifecycleBase implements Lifecycle {
         }
     }
 
+    //==============================================
+    //-----------------责任链的入口-------------------
+    //==============================================
 
     //Catalina初始化到这里
     //考虑到有其它线程可能会改变StandardServer的state值，比如利用jmx执行init操作，
     //因此要考虑并发问题，所以LifecycleBase#init()使用了synchronized锁，并且state是volatile修饰的。
     @Override
     public final synchronized void init() throws LifecycleException {
-        // 检查状态
+        // 检查状态是否符合
         if (!state.equals(LifecycleState.NEW)) {
+            // 抛出异常
             invalidTransition(Lifecycle.BEFORE_INIT_EVENT);
         }
 
         try {
-            //在子类需要具体实现的initInternal()之前将组件的状态设为了LifecycleState.INITIALIZING
+            //before==>在子类需要具体实现的initInternal()之前将组件的状态设为了LifecycleState.INITIALIZING
             setStateInternal(LifecycleState.INITIALIZING, null, false);
 
             // 发现这里面就做了一件事情，调用了一下接下来定义的抽象方法initInternal()（第21行）。
             // 实际上看下LifecycleBase的实现类就会发现，所有的组件类几乎都继承了LifecycleBase类，
             // 所以这些组件类一般只会有initInternal方法的定义。
+
+            //模板方法
             initInternal();
-            //之后设置为LifecycleState.INITIALIZED
+
+
+
+            //after==>之后设置为LifecycleState.INITIALIZED
             setStateInternal(LifecycleState.INITIALIZED, null, false);
         } catch (Throwable t) {
             handleSubClassException(t, "lifecycleBase.initFail", toString());
@@ -461,7 +470,14 @@ public abstract class LifecycleBase implements Lifecycle {
 
         this.state = state;
         String lifecycleEvent = state.getLifecycleEvent();
-        //这里会触发监听器
+        // Listener==>这里会触发监听器
+
+        // 1.有关ContextConfig有关介绍时提过，该监听器会对初始化结束事件作出响应，主要工作为
+        // 初始化解析两种web.xml文件的解析器webDigester和webFragmentDigester，为接下来
+        // 的启动事件解析web.xml做准备。至此Container(StandardEngine)容器的初始化工作结束
+
+        //
+
         if (lifecycleEvent != null) {
             fireLifecycleEvent(lifecycleEvent, data);
         }
