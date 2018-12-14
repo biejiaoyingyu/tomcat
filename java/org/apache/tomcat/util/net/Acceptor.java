@@ -81,9 +81,12 @@ public class Acceptor<U> implements Runnable {
             state = AcceptorState.RUNNING;
 
             try {
-                //这里就是处理最大连接数的么？
+                // 这里就是处理最大连接数的么？
                 // 如果此时达到了最大连接数(之前我们说过，默认是10000)，就等待
-                //if we have reached max connections, wait
+
+                //对当前连接数进行判断，如果超过了阈值则阻塞等待其他连接释放，底层用了AQS的无阻塞锁机制。
+
+                // if we have reached max connections, wait
                 endpoint.countUpOrAwaitConnection();
 
                 // Endpoint might have been paused while waiting for latch
@@ -99,9 +102,12 @@ public class Acceptor<U> implements Runnable {
                     //监听到连接后（即浏览器向服务器发起一次请求）
                     // 这里就是接收下一个进来的 SocketChannel
                     // 之前我们设置了 ServerSocketChannel 为阻塞模式，所以这边的 accept 是阻塞的
+
+                    //底层其实就是服务端阻塞等待socket连接的过程，
                     socket = endpoint.serverSocketAccept();
                 } catch (Exception ioe) {
                     // We didn't get a socket
+                    // 当连接过程出现异常时由标注
                     endpoint.countDownConnection();
                     if (endpoint.isRunning()) {
                         // Introduce delay if necessary
@@ -122,6 +128,10 @@ public class Acceptor<U> implements Runnable {
                     // an appropriate processor if successful
                     // 处理请求
                     // setSocketOptions() 是这里的关键方法，也就是说前面千辛万苦都是为了能到这里进行处理
+
+                    // 设置了一些socket的连接参数，Tomcat中将所有socket参数封装在SocketProperties中，在使
+                    // 用过程中我们可以根据请求状况调整这些参数。比如，在Tomcat的生命周期（二）中初始化协议处
+                    // 理类Http11Protocol时设置了socket连接超时时间，是否支持延迟等参数。
                     if (!endpoint.setSocketOptions(socket)) {
                         // 如果上面的方法返回 false，关闭 SocketChannel
                         endpoint.closeSocket(socket);

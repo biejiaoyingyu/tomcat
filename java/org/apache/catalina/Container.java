@@ -81,7 +81,7 @@ public interface Container extends Lifecycle {
 
     // ----------------------------------------------------- Manifest Constants
 
-
+    //-----------------------------各种事件------------------------------
     /**
      * The ContainerEvent event type sent when a child container is added
      * by <code>addChild()</code>.

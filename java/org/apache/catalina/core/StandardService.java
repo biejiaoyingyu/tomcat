@@ -85,11 +85,25 @@ public class StandardService extends LifecycleMBeanBase implements Service {
 
     private ClassLoader parentClassLoader = null;
 
+
+    // Mapper是Connector的两个成员变量，在创建Connector时一同创建
+
+    // Mapper中保存了所有Container容器的对应关系，类中有几个内部类MapElement、Host、
+    // ContextList、Context、ContextVersion和Wrapper，其中Host、Context和Wrapper
+    // 继承了抽象类MapElement，其中包含两个元素：
+    // 1. name表示对应Container容器的名称；
+    // 2. object表示容器本身对象。Host中持有ContextList的引用，并维护了一个保存该Host
+    // 所有alias的集合；ContextList持有Context[]的引用；Context中维护了一个ContextVersion[]
+    // 保存了一个war包的不同版本实例；ContextVersion表示了某一特定版本的war包，其下必
+    // 有代表多个Servlet的Wrapper数组
+
+    //MapperListener实现了两个监听器接口，一个是经常出镜的LifecycleListener，针对
+    // Tomcat整体生命周期进行监听；另一个是只用来监听Container相关事件的ContainerListener。
+
     /**
      * Mapper.
      */
     protected final Mapper mapper = new Mapper();
-
 
     /**
      * Mapper listener.
@@ -450,6 +464,10 @@ public class StandardService extends LifecycleMBeanBase implements Service {
         // 容器组件映射关系监听器MapperListener启动，该类非常重要，保存了Host、Context、Wrapper之间的映射关系，
         // 试想一下，当一个请求过来时Tomcat是如何知道请求对应的是哪个war包，哪个Servlet呢？MapperListener和
         // Mapper类就做了请求“引路人”的作用。
+
+        //===============================
+        //   注意上面的属性变量的注释
+        //===============================
         mapperListener.start();
 
         // Start our defined Connectors second

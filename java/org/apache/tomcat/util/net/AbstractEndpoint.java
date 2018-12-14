@@ -1179,7 +1179,7 @@ public abstract class AbstractEndpoint<S,U> {
         acceptors = new ArrayList<>(count);
 
         for (int i = 0; i < count; i++) {
-            //创建acceptor
+            //创建acceptor====>这个需要进去====>run()方法
             Acceptor<U> acceptor = new Acceptor<>(this);
             String threadName = getName() + "-Acceptor-" + i;
             acceptor.setThreadName(threadName);

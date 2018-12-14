@@ -91,6 +91,7 @@ public class MapperListener extends LifecycleMBeanBase
 
     // ------------------------------------------------------- Lifecycle Methods
 
+    // -------------------------------这里--------------------------------
     @Override
     public void startInternal() throws LifecycleException {
 
@@ -101,6 +102,7 @@ public class MapperListener extends LifecycleMBeanBase
             return;
         }
 
+        //findDefaultHost()设置默认的Host
         findDefaultHost();
 
         addListeners(engine);
