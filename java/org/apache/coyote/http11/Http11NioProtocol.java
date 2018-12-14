@@ -35,6 +35,7 @@ public class Http11NioProtocol extends AbstractHttp11JsseProtocol<NioChannel> {
     private static final Log log = LogFactory.getLog(Http11NioProtocol.class);
 
 
+    //这里创建对象进入
     public Http11NioProtocol() {
         super(new NioEndpoint());
     }

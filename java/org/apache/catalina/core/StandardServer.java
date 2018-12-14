@@ -16,36 +16,7 @@
  */
 package org.apache.catalina.core;
 
-import java.beans.PropertyChangeListener;
-import java.beans.PropertyChangeSupport;
-import java.io.File;
-import java.io.IOException;
-import java.io.InputStream;
-import java.net.InetAddress;
-import java.net.ServerSocket;
-import java.net.Socket;
-import java.net.SocketTimeoutException;
-import java.net.URISyntaxException;
-import java.net.URL;
-import java.net.URLClassLoader;
-import java.security.AccessControlException;
-import java.util.Random;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.ScheduledThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
-
-import javax.management.InstanceNotFoundException;
-import javax.management.MBeanException;
-import javax.management.ObjectName;
-
-import org.apache.catalina.Context;
-import org.apache.catalina.Lifecycle;
-import org.apache.catalina.LifecycleException;
-import org.apache.catalina.LifecycleState;
-import org.apache.catalina.Server;
-import org.apache.catalina.Service;
+import org.apache.catalina.*;
 import org.apache.catalina.deploy.NamingResourcesImpl;
 import org.apache.catalina.mbeans.MBeanFactory;
 import org.apache.catalina.startup.Catalina;
@@ -58,6 +29,19 @@ import org.apache.tomcat.util.ExceptionUtils;
 import org.apache.tomcat.util.buf.StringCache;
 import org.apache.tomcat.util.res.StringManager;
 import org.apache.tomcat.util.threads.TaskThreadFactory;
+
+import javax.management.InstanceNotFoundException;
+import javax.management.MBeanException;
+import javax.management.ObjectName;
+import java.beans.PropertyChangeListener;
+import java.beans.PropertyChangeSupport;
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.*;
+import java.security.AccessControlException;
+import java.util.Random;
+import java.util.concurrent.*;
 
 
 /**
@@ -73,17 +57,13 @@ public final class StandardServer extends LifecycleMBeanBase implements Server {
 
     // ------------------------------------------------------------ Constructor
 
-
     /**
      * Construct a default instance of this class.
      */
     public StandardServer() {
-
         super();
-
         globalNamingResources = new NamingResourcesImpl();
         globalNamingResources.setContainer(this);
-
         if (isUseNaming()) {
             namingContextListener = new NamingContextListener();
             //额外添加了一个监听器
@@ -91,7 +71,6 @@ public final class StandardServer extends LifecycleMBeanBase implements Server {
         } else {
             namingContextListener = null;
         }
-
     }
 
 
@@ -938,6 +917,7 @@ public final class StandardServer extends LifecycleMBeanBase implements Server {
         // 这里的CONFIGURE_START_EVENT就是本文最开始Lifecycle接口中定义的常量，这里表示发布
         // 了一个start配置事件。
         fireLifecycleEvent(CONFIGURE_START_EVENT, null);
+
         setState(LifecycleState.STARTING);
         //然后，启动内部的NamingResourcesImpl实例，这个类封装了各种各样的数据，
         //比如ContextEnvironment、ContextResource、Container等等，它用于Resource资源的初始化，

@@ -399,6 +399,14 @@ public class HostConfig implements LifecycleListener {
      * Deploy applications for any directories or WAR files that are found
      * in our "application root" directory.
      */
+
+    /**
+     * 共有web应用部署方式：1.XML描述符；
+     * 2.WAR；
+     * 3.扩展文件夹，我们选择WAR方式进行分析。
+     * appBase()得到${catalina.base}/webapps下对应的文件，
+     * filterAppPaths(appBase.list())得到/webapps下所有的war文件，并滤除一些排除项
+     */
     protected void deployApps() {
 
         File appBase = host.getAppBaseFile();
@@ -409,7 +417,7 @@ public class HostConfig implements LifecycleListener {
         // 部署 xml 描述文件
         deployDescriptors(configBase, configBase.list());
         // Deploy WARs
-        // 解压 war 包，但是这里还不会去启动应用
+        // 解压 war 包，但是这里还不会去启动应用 ==>进入
         deployWARs(appBase, filteredAppPaths);
         // Deploy expanded folders
         // 处理已经存在的目录，前面解压的 war 包不会再行处理
@@ -703,6 +711,10 @@ public class HostConfig implements LifecycleListener {
         ExecutorService es = host.getStartStopExecutor();
         List<Future<?>> results = new ArrayList<>();
 
+        // 遍历每一个war包，对文件名称进行校验和特殊字符的处理，判断文件名对应的war包是否已经运行是否已经部署成功，
+        // 最后将文件及其对应信息包装成DeployWar放入线程池中进行部署，由于DeployWar实现了Runable，所以这里的
+        // es.submit使用的是ExectuorService.submit(Runnable)这个重载方法，得到的Future中并没有返回值，
+        // 下面result.get()的目的只是为了阻塞让所有的DeployWar任务执行完毕，
         for (int i = 0; i < files.length; i++) {
 
             if (files[i].equalsIgnoreCase("META-INF"))
@@ -750,7 +762,8 @@ public class HostConfig implements LifecycleListener {
                     invalidWars.add(files[i]);
                     continue;
                 }
-
+                //这里部署项目==》进入DeployWar
+                // ==》DeployWar中只是将当前需要加载的ContextName和对应的war文件传递给deployWAR(String, File)
                 results.add(es.submit(new DeployWar(this, cn, war)));
             }
         }
@@ -947,7 +960,9 @@ public class HostConfig implements LifecycleListener {
                                 cn.getBaseName() + ".xml")).getAbsolutePath(),
                         Long.valueOf(0));
             }
-
+            // 为每一个StandardContext创建一个监听器ContextConfig，该监听器的值是写死的，并通过
+            // host.getConfigClass()获得，之后为StandardContext设置名称、路劲、版本等信息，
+            // 最后调用host.addChild(Container)建立StandardHost与所有StandardContext的关联
             Class<?> clazz = Class.forName(host.getConfigClass());
             LifecycleListener listener = (LifecycleListener) clazz.getConstructor().newInstance();
             context.addLifecycleListener(listener);
@@ -956,6 +971,9 @@ public class HostConfig implements LifecycleListener {
             context.setPath(cn.getPath());
             context.setWebappVersion(cn.getVersion());
             context.setDocBase(cn.getBaseName() + ".war");
+            // 注意这里==》最后调用host.addChild(Container)建立StandardHost与所有StandardContext的关联
+            // 流程又走入生命周期的一个大循环内，调用LifecycleBase.start()，由于此时StandardContext刚刚创
+            // 建出来，其生命周期状态为NEW，并不会进入启动流程而是先进行init()
             host.addChild(context);
         } catch (Throwable t) {
             ExceptionUtils.handleThrowable(t);
@@ -1571,6 +1589,10 @@ public class HostConfig implements LifecycleListener {
             host.setAutoDeploy(false);
         }
 
+        /**
+         * 重点在于最后一个判断，默认情况下host.getDeployOnStartup()返回成员变量deployOnStartup为true，
+         * 表示一启动就加载web应用
+         */
         if (host.getDeployOnStartup())
             deployApps();
 
@@ -1842,6 +1864,8 @@ public class HostConfig implements LifecycleListener {
             this.war = war;
         }
 
+
+        //这里
         @Override
         public void run() {
             config.deployWAR(cn, war);

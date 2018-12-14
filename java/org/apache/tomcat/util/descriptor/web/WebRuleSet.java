@@ -812,7 +812,6 @@ final class SetAuthConstraintRule extends Rule {
                .debug("Calling SecurityConstraint.setAuthConstraint(true)");
         }
     }
-
 }
 
 

@@ -16,28 +16,6 @@
  */
 package org.apache.tomcat.util.net;
 
-import java.io.IOException;
-import java.io.OutputStreamWriter;
-import java.net.InetAddress;
-import java.net.InetSocketAddress;
-import java.net.NetworkInterface;
-import java.net.SocketException;
-import java.util.ArrayList;
-import java.util.Enumeration;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.Executor;
-import java.util.concurrent.RejectedExecutionException;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
-
-import javax.management.MalformedObjectNameException;
-import javax.management.ObjectName;
-
 import org.apache.juli.logging.Log;
 import org.apache.tomcat.util.ExceptionUtils;
 import org.apache.tomcat.util.IntrospectionUtils;
@@ -45,11 +23,21 @@ import org.apache.tomcat.util.collections.SynchronizedStack;
 import org.apache.tomcat.util.modeler.Registry;
 import org.apache.tomcat.util.net.Acceptor.AcceptorState;
 import org.apache.tomcat.util.res.StringManager;
-import org.apache.tomcat.util.threads.LimitLatch;
-import org.apache.tomcat.util.threads.ResizableExecutor;
+import org.apache.tomcat.util.threads.*;
 import org.apache.tomcat.util.threads.TaskQueue;
-import org.apache.tomcat.util.threads.TaskThreadFactory;
 import org.apache.tomcat.util.threads.ThreadPoolExecutor;
+
+import javax.management.MalformedObjectNameException;
+import javax.management.ObjectName;
+import java.io.IOException;
+import java.io.OutputStreamWriter;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.net.NetworkInterface;
+import java.net.SocketException;
+import java.util.*;
+import java.util.concurrent.*;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
 
 /**
  * @param <S> The type used by the socket wrapper associated with this endpoint.
@@ -854,6 +842,9 @@ public abstract class AbstractEndpoint<S,U> {
     }
 
 
+    // TaskQueue继承自LinkedBlockingQueue并重写了关键的take()、offer(Runnable)方法，通过创建的线程
+    // 工厂TaskThreadFactory设置了线程池的名称，开启守护线程并设置优先级为NORMAL。线程池构造器中传递的参
+    // 数分别设置corePoolSize = 10，maxPoolSize = 200，keepAliveTime = 60s
     public void createExecutor() {
         internalExecutor = true;
         TaskQueue taskqueue = new TaskQueue();
@@ -1183,10 +1174,12 @@ public abstract class AbstractEndpoint<S,U> {
 
 
     protected void startAcceptorThreads() {
+        //Acceptor线程的数量为1
         int count = getAcceptorThreadCount();
         acceptors = new ArrayList<>(count);
 
         for (int i = 0; i < count; i++) {
+            //创建acceptor
             Acceptor<U> acceptor = new Acceptor<>(this);
             String threadName = getName() + "-Acceptor-" + i;
             acceptor.setThreadName(threadName);

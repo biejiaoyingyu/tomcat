@@ -16,45 +16,7 @@
  */
 package org.apache.catalina.core;
 
-import java.beans.PropertyChangeListener;
-import java.beans.PropertyChangeSupport;
-import java.io.File;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.concurrent.Callable;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Future;
-import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReadWriteLock;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
-
-import javax.management.ObjectName;
-
-import org.apache.catalina.AccessLog;
-import org.apache.catalina.Cluster;
-import org.apache.catalina.Container;
-import org.apache.catalina.ContainerEvent;
-import org.apache.catalina.ContainerListener;
-import org.apache.catalina.Context;
-import org.apache.catalina.Engine;
-import org.apache.catalina.Globals;
-import org.apache.catalina.Host;
-import org.apache.catalina.Lifecycle;
-import org.apache.catalina.LifecycleException;
-import org.apache.catalina.LifecycleState;
-import org.apache.catalina.Loader;
-import org.apache.catalina.Pipeline;
-import org.apache.catalina.Realm;
-import org.apache.catalina.Server;
-import org.apache.catalina.Valve;
-import org.apache.catalina.Wrapper;
+import org.apache.catalina.*;
 import org.apache.catalina.connector.Request;
 import org.apache.catalina.connector.Response;
 import org.apache.catalina.util.ContextName;
@@ -65,6 +27,20 @@ import org.apache.tomcat.util.ExceptionUtils;
 import org.apache.tomcat.util.MultiThrowable;
 import org.apache.tomcat.util.res.StringManager;
 import org.apache.tomcat.util.threads.InlineExecutorService;
+
+import javax.management.ObjectName;
+import java.beans.PropertyChangeListener;
+import java.beans.PropertyChangeSupport;
+import java.io.File;
+import java.security.AccessController;
+import java.security.PrivilegedAction;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.concurrent.*;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 
 /**
@@ -768,6 +744,10 @@ public abstract class ContainerBase extends LifecycleMBeanBase
      */
     @Override
     public Container[] findChildren() {
+        // findChildren()拿到成员变量HashMap<String, Container> children的所有value，该集合是在Digester
+        // 解析容器对应规则的时候通过addChild(Container)放入值的，比如对于这里的StandardEngine来说，StandardHost
+        // 是他的children，StartChild实现了Callable接口，其call()调用了child.start()，对应StandardHost的
+        // startInternal()
         synchronized (children) {
             Container results[] = new Container[children.size()];
             return children.values().toArray(results);
@@ -915,7 +895,10 @@ public abstract class ContainerBase extends LifecycleMBeanBase
 
         // Start our child containers, if any
         // 把子容器的启动步骤放在线程中处理，默认情况下线程池只有一个线程处理任务队列
+        //进入findChildren()方法
         Container children[] = findChildren();
+
+
         List<Future<Void>> results = new ArrayList<>();
         for (int i = 0; i < children.length; i++) {
             // startStopExecutor是在init阶段创建的线程池，默认情况下 coreSize = maxSize = 1，也就是说默认只
@@ -963,14 +946,19 @@ public abstract class ContainerBase extends LifecycleMBeanBase
             ((Lifecycle) pipeline).start();
         }
 
+        //观察者模式
         setState(LifecycleState.STARTING);
 
         // Start our thread
         // 开启ContainerBackgroundProcessor线程用于调用子容器的backgroundProcess方法，
         // 默认情况下backgroundProcessorDelay=-1，不会启用该线程
+        // 该线程的启动有一个先决条件，就是backgroundProcessorDelay > 0，而Container子容器
+        // 中只有StandardEngine对该值进行了覆盖，满足大于0的条件，
+        // 因此可以说该线程启动入口只在StandardEngine启动时调用父类的startInternal()中
         if (backgroundProcessorDelay > 0) {
             monitorFuture = Container.getService(ContainerBase.this).getServer()
                     .getUtilityExecutor().scheduleWithFixedDelay(
+                            // 进入
                             new ContainerBackgroundProcessorMonitor(), 0, 60, TimeUnit.SECONDS);
         }
     }
@@ -1298,6 +1286,8 @@ public abstract class ContainerBase extends LifecycleMBeanBase
      * Start the background thread that will periodically check for
      * session timeouts.
      */
+
+    //这里
     protected void threadStart() {
         if (backgroundProcessorDelay > 0
                 && (getState().isAvailable() || LifecycleState.STARTING_PREP.equals(getState()))
@@ -1311,6 +1301,7 @@ public abstract class ContainerBase extends LifecycleMBeanBase
                 }
             }
             backgroundProcessorFuture = Container.getService(this).getServer().getUtilityExecutor()
+                   //这里
                     .scheduleWithFixedDelay(new ContainerBackgroundProcessor(),
                             backgroundProcessorDelay, backgroundProcessorDelay,
                             TimeUnit.SECONDS);
@@ -1348,6 +1339,7 @@ public abstract class ContainerBase extends LifecycleMBeanBase
     // ------------------------------- ContainerBackgroundProcessor Inner Class
 
     protected class ContainerBackgroundProcessorMonitor implements Runnable {
+        //进入
         @Override
         public void run() {
             if (getState().isAvailable()) {
@@ -1362,6 +1354,7 @@ public abstract class ContainerBase extends LifecycleMBeanBase
      */
     protected class ContainerBackgroundProcessor implements Runnable {
 
+        //这里
         @Override
         public void run() {
             processChildren(ContainerBase.this);
@@ -1382,8 +1375,11 @@ public abstract class ContainerBase extends LifecycleMBeanBase
                     // is performed under the web app's class loader
                     originalClassLoader = ((Context) container).bind(false, null);
                 }
+                // 这里的
                 container.backgroundProcess();
                 Container[] children = container.findChildren();
+                // 可以看出虽然线程的启动入口只在StandardEngine启动时，但代码采用了递归开启的方式，
+                // 使得StandardEngine下所有的子容器都能执行backgroundProcess()的具体实现
                 for (int i = 0; i < children.length; i++) {
                     if (children[i].getBackgroundProcessorDelay() <= 0) {
                         processChildren(children[i]);
@@ -1411,6 +1407,7 @@ public abstract class ContainerBase extends LifecycleMBeanBase
             this.child = child;
         }
 
+        //调用call()方法
         @Override
         public Void call() throws LifecycleException {
             child.start();

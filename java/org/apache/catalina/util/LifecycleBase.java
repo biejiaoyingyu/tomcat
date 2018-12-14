@@ -213,12 +213,13 @@ public abstract class LifecycleBase implements Lifecycle {
         }
 
         try {
-            //  发出STARTING_PREP事件
+            // 发出STARTING_PREP事件
             setStateInternal(LifecycleState.STARTING_PREP, null, false);
 
             //将会调用本类中定义的抽象方法startInternal()
             //模板模式
             startInternal();
+
             if (state.equals(LifecycleState.FAILED)) {
                 // This is a 'controlled' failure. The component put itself into the
                 // FAILED state so call stop() to complete the clean-up.

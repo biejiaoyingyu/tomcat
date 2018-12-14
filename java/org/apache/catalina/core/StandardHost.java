@@ -790,6 +790,12 @@ public class StandardHost extends ContainerBase implements Host {
      *  是一个 LifecycleListener，它会处理 start、stop 事件通知，并且会在线程池中启动、
      *  停止 Context 容器，接下来看下 HostConfig 是如何工作的
      */
+    // 1. 给StandardHost的StandardPipeline又添加了一个阀门ErrorReportValve；
+    // 2.继续调用ContainerBase的startInternal。但需要注意的是对于StandardHost
+    // 来说children肯定是StandardContext，此时通过findChildren()得到的StandardContext
+    // 实际上是通过解析server.xml中的<Context>转变而来，该StandardContext和通常意义上的
+    // webapps/xxx.war并没有对应关系，况且很多时候我们并不会在server.xml中添加<Context>标签，
+    // 而对于真正的StandardContext的解析并不是通过StandardHost.findChildren()得到。
     @Override
     protected synchronized void startInternal() throws LifecycleException {
 
@@ -828,6 +834,7 @@ public class StandardHost extends ContainerBase implements Host {
             }
         }
         // 调用父类 ContainerBase，完成统一的启动动作
+
         super.startInternal();
     }
 
