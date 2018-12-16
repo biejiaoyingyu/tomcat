@@ -16,13 +16,12 @@
  */
 package javax.servlet.http;
 
+import javax.servlet.ServletException;
+import javax.servlet.ServletRequestWrapper;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Enumeration;
 import java.util.Map;
-
-import javax.servlet.ServletException;
-import javax.servlet.ServletRequestWrapper;
 
 /**
  * Provides a convenient implementation of the HttpServletRequest interface that
@@ -245,6 +244,10 @@ public class HttpServletRequestWrapper extends ServletRequestWrapper implements
      * The default behavior of this method is to return getSession() on the
      * wrapped request object.
      */
+
+    ///=======================
+    // =====下次阅读注意这里=====
+    // ========================
     @Override
     public HttpSession getSession() {
         return this._getHttpServletRequest().getSession();

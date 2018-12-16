@@ -17,32 +17,7 @@
 package org.apache.catalina.session;
 
 
-import java.beans.PropertyChangeListener;
-import java.beans.PropertyChangeSupport;
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.Deque;
-import java.util.Enumeration;
-import java.util.HashMap;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.regex.Pattern;
-import java.util.regex.PatternSyntaxException;
-
-import org.apache.catalina.Container;
-import org.apache.catalina.Context;
-import org.apache.catalina.Engine;
-import org.apache.catalina.Globals;
-import org.apache.catalina.Lifecycle;
-import org.apache.catalina.LifecycleException;
-import org.apache.catalina.LifecycleState;
-import org.apache.catalina.Manager;
-import org.apache.catalina.Session;
-import org.apache.catalina.SessionIdGenerator;
+import org.apache.catalina.*;
 import org.apache.catalina.util.LifecycleMBeanBase;
 import org.apache.catalina.util.SessionIdGeneratorBase;
 import org.apache.catalina.util.StandardSessionIdGenerator;
@@ -50,6 +25,15 @@ import org.apache.catalina.util.ToStringUtil;
 import org.apache.juli.logging.Log;
 import org.apache.juli.logging.LogFactory;
 import org.apache.tomcat.util.res.StringManager;
+
+import java.beans.PropertyChangeListener;
+import java.beans.PropertyChangeSupport;
+import java.io.IOException;
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.regex.Pattern;
+import java.util.regex.PatternSyntaxException;
 
 
 /**
@@ -553,23 +537,33 @@ public abstract class ManagerBase extends LifecycleMBeanBase implements Manager 
      */
     @Override
     public void backgroundProcess() {
+        /// processExpiresFrequency 默认值为 6，
+        // 而backgroundProcess默认每隔10s调用一次，也就是说除了任务执行的耗时，每隔 60s 执行一次
         count = (count + 1) % processExpiresFrequency;
         if (count == 0)
+            // 默认每隔 60s 执行一次 Session 清理
             processExpires();
     }
 
     /**
      * Invalidate all sessions that have expired.
      */
+
+
+    /**
+     * 单线程处理，不存在线程安全问题
+     */
     public void processExpires() {
 
         long timeNow = System.currentTimeMillis();
+        //// 获取所有的 Session
         Session sessions[] = findSessions();
         int expireHere = 0 ;
 
         if(log.isDebugEnabled())
             log.debug("Start expire sessions " + getName() + " at " + timeNow + " sessioncount " + sessions.length);
         for (int i = 0; i < sessions.length; i++) {
+            //// Session 的过期是在 isValid() 里面处理的
             if (sessions[i]!=null && !sessions[i].isValid()) {
                 expireHere++;
             }
@@ -577,6 +571,7 @@ public abstract class ManagerBase extends LifecycleMBeanBase implements Manager 
         long timeEnd = System.currentTimeMillis();
         if(log.isDebugEnabled())
              log.debug("End expire sessions " + getName() + " processingTime " + (timeEnd - timeNow) + " expired sessions: " + expireHere);
+        // // 记录下处理时间
         processingTime += ( timeEnd - timeNow );
 
     }
@@ -660,9 +655,10 @@ public abstract class ManagerBase extends LifecycleMBeanBase implements Manager 
     }
 
 
+    //创建session
     @Override
     public Session createSession(String sessionId) {
-
+        // 限制 session 数量，默认不做限制，maxActiveSessions = -1
         if ((maxActiveSessions >= 0) &&
                 (getActiveSessions() >= maxActiveSessions)) {
             rejectedSessions++;
@@ -672,9 +668,11 @@ public abstract class ManagerBase extends LifecycleMBeanBase implements Manager 
         }
 
         // Recycle or create a Session instance
+        // 创建 StandardSession 实例，子类可以重写该方法
         Session session = createEmptySession();
 
         // Initialize the properties of the new session and return it
+        // 设置最大不活跃时间(单位s)，如果超过这个时间，仍然没有请求的话该Session将会失效
         session.setNew(true);
         session.setValid(true);
         session.setCreationTime(System.currentTimeMillis());
@@ -684,8 +682,9 @@ public abstract class ManagerBase extends LifecycleMBeanBase implements Manager 
             id = generateSessionId();
         }
         session.setId(id);
+        //// 这个地方不是线程安全的，可能当时开发人员认为计数器不要求那么准确
         sessionCounter++;
-
+        //// 将创建时间添加到LinkedList中，并且把最先添加的时间移除，主要还是方便清理过期session
         SessionTiming timing = new SessionTiming(session.getCreationTime(), 0);
         synchronized (sessionCreationTiming) {
             sessionCreationTiming.add(timing);
