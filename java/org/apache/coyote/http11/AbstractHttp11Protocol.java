@@ -926,6 +926,7 @@ public abstract class AbstractHttp11Protocol<S> extends AbstractProtocol<S> {
 
     @Override
     protected Processor createProcessor() {
+        //这里
         Http11Processor processor = new Http11Processor(this, adapter);
         return processor;
     }

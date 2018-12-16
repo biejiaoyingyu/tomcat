@@ -1486,6 +1486,11 @@ public class NioEndpoint extends AbstractJsseEndpoint<NioChannel,SocketChannel> 
                     SocketState state = SocketState.OPEN;
                     // Process the request from this socket
                     // 处理请求
+
+                    //socket的包装类SocketWrapper交给成员变量handler进一步处理，该handler是继承自
+                    // AbstractProtocol.AbstractConnectionHandler的JIoEndpoint内部类Http11ConnectionHandler，
+                    // 但process(SocketWrapper, SocketStatus)依然是其父类的方法
+
                     if (event == null) {
                         state = getHandler().process(socketWrapper, SocketEvent.OPEN_READ);
                     } else {

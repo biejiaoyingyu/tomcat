@@ -101,11 +101,14 @@ public final class Mapper {
      * @param aliases Alias names for the virtual host
      * @param host Host object
      */
-    public synchronized void addHost(String name, String[] aliases,
-                                     Host host) {
+    public synchronized void addHost(String name, String[] aliases, Host host) {
         name = renameWildcardHost(name);
+        // 同addService(Service)等添加子容器的方法思路一样，这里添加一个Host也首先创建一个比
+        // 原数组大1的新数组，然后通过insertMap(Mapper.MapElement[], Mapper.MapElment[],
+        // Mapper.MapElement)方法将老数组copy到新数组中，最后将老数组的引用指向新数组
         MappedHost[] newHosts = new MappedHost[hosts.length + 1];
         MappedHost newHost = new MappedHost(name, host);
+        // 这里
         if (insertMap(hosts, newHosts, newHost)) {
             hosts = newHosts;
             if (newHost.name.equals(defaultHostName)) {
@@ -131,6 +134,7 @@ public final class Mapper {
                 return;
             }
         }
+
         List<MappedHost> newAliases = new ArrayList<>(aliases.length);
         for (String alias : aliases) {
             alias = renameWildcardHost(alias);
@@ -264,7 +268,9 @@ public final class Mapper {
             WebResourceRoot resources, Collection<WrapperMappingInfo> wrappers) {
 
         hostName = renameWildcardHost(hostName);
-
+        //Host[]中查找匹配第二个参数hostName的Host，如果没有找到，说明该Host还没有注册，
+        // 调用addHost(String, String[], Object)先添加到映射中，之后进行二次校验判断
+        // 是否添加成功，如果还没有添加成功则结束流程。
         MappedHost mappedHost  = exactFind(hosts, hostName);
         if (mappedHost == null) {
             addHost(hostName, new String[0], host);
@@ -274,19 +280,35 @@ public final class Mapper {
                 return;
             }
         }
+        //Host必须存在别名，否则无法执行操作
         if (mappedHost.isAlias()) {
             log.error(sm.getString("mapper.addContext.hostIsAlias", hostName));
             return;
         }
         int slashCount = slashCount(path);
         synchronized (mappedHost) {
+            //根据参数构建出本次版本的ContextVersion，如果参数wrappers不为空，
+            // 则先进行Wrapper的映射添加，addWrappers(ContextVersion, Collection<WrapperMappingInfo>)
             ContextVersion newContextVersion = new ContextVersion(version,
                     path, slashCount, context, resources, welcomeResources);
             if (wrappers != null) {
+                //这里
                 addWrappers(newContextVersion, wrappers);
             }
 
+
             ContextList contextList = mappedHost.contextList;
+
+            //根据context path在Context[]中寻找匹配项，如果不存在匹配context path的Context，
+            // 进入新增Context流程，ContextList.addContext(Context, int)将新增的Context放入
+            // ContextList中，而updateContextList(Host, ContextList)更新改动后ContextList
+            // 所属Host内的引用；如果存在同路径Context则进入添加同路径Context不同版本ContextVersion
+            // 流程，调用inserMap(MapElement[], MapElement[], MapElement)进行顺位插入，如果发现
+            // 存在一个同版本的ContextVersion对象，则插入失败，进入最后的else流程，找到重复version的
+            // ContextVersion并用新元素覆盖老元素至此所有元素地址对应元素实体的关系都存储在Mapper中，
+            // 当请求到来时，可以根据StandardHost中的成员变量mapper定位到具体的Servlet，最后我们再来
+            // 看看上面提到的ContainerEvent触发方法
+
             MappedContext mappedContext = exactFind(contextList.contexts, path);
             if (mappedContext == null) {
                 mappedContext = new MappedContext(path, newContextVersion);
@@ -443,6 +465,7 @@ public final class Mapper {
     private void addWrappers(ContextVersion contextVersion,
             Collection<WrapperMappingInfo> wrappers) {
         for (WrapperMappingInfo wrapper : wrappers) {
+            //进入
             addWrapper(contextVersion, wrapper.getMapping(),
                     wrapper.getWrapper(), wrapper.isJspWildCard(),
                     wrapper.isResourceOnly());
@@ -460,6 +483,15 @@ public final class Mapper {
      * @param resourceOnly true if this wrapper always expects a physical
      *                     resource to be present (such as a JSP)
      */
+
+    //根据path参数（对应<url-pattern>）的不同，逻辑分为四个部分：
+    // 1. 以/*结尾的通配符匹配规则；
+    // 2. 以*.开始的扩展名匹配规则；
+    // 3. 代表默认匹配规则的路径/；
+    // 4. 不满足上述三种的精确名匹配规则。
+    // 如果大家对Servlet有一定深度了解的话就会秒懂，这里的四种路径匹配分类正好对应了Servlet的四种匹配规则，
+    // 而这四种配置的Wrapper会分别放置在ContextVersion中对应的Wrapper[]中
+
     protected void addWrapper(ContextVersion context, String path,
             Wrapper wrapper, boolean jspWildCard, boolean resourceOnly) {
 
@@ -1527,6 +1559,12 @@ public final class Mapper {
      * Insert into the right place in a sorted MapElement array, and prevent
      * duplicates.
      */
+    // 该方法是一个公共抽取方法，所有继承MapElement的映射组件都能通过该方法完成添加操作。
+    // 其中find(MapElement[], String)根据第二个参数（新元素的名称，不限于Host的名称）
+    // 与第一个参数的数组中元素的名称进行比较（数组中元素根据名称有序排列），返回名称相同
+    // 元素或者closest inferior元素（知道意思但不会用中文如何优雅的表达，抱歉，哈哈）的
+    // 索引，该索引就是新元素要插入的索引减一，如果找到同名的元素，该方法会返回false，
+
     private static final <T> boolean insertMap
         (MapElement<T>[] oldMap, MapElement<T>[] newMap, MapElement<T> newElement) {
         int pos = find(oldMap, newElement.name);
@@ -1721,6 +1759,7 @@ public final class Mapper {
         public final int slashCount;
         public final WebResourceRoot resources;
         public String[] welcomeResources;
+        //这里
         public MappedWrapper defaultWrapper = null;
         public MappedWrapper[] exactWrappers = new MappedWrapper[0];
         public MappedWrapper[] wildcardWrappers = new MappedWrapper[0];

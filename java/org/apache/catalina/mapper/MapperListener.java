@@ -105,6 +105,7 @@ public class MapperListener extends LifecycleMBeanBase
         //findDefaultHost()设置默认的Host
         findDefaultHost();
 
+        //递归处理，让StandardEngine下所有的children都添加了MapperListener
         addListeners(engine);
 
         Container[] conHosts = engine.findChildren();
@@ -112,6 +113,7 @@ public class MapperListener extends LifecycleMBeanBase
             Host host = (Host) conHost;
             if (!LifecycleState.NEW.equals(host.getState())) {
                 // Registering the host will register the context and wrappers
+                // 代码中得到待注册Host所有的别名，将别名数组，Host名称和对象本身塞入addHost(String, String[], Object)中
                 registerHost(host);
             }
         }
@@ -263,6 +265,13 @@ public class MapperListener extends LifecycleMBeanBase
 
     private void findDefaultHost() {
 
+
+        // StandardService作为Tomcat两大组件的“组合器”，因此Connector需要通过上层容器
+        // StandardService做一次中转找到对应的Container容器StandardEngine，然后得到
+        // <Engine>中配置的defaultHost属性的值，再与StandardEngine下所有的StandardHost
+        // 一一比较，如果存在对应的实体(存在name属性与<Engine> defaultHost属性相同的<Host>标签)，
+        // 就可以设置默认host名称为<Engine>中defaultHost属性的值
+
         Engine engine = service.getContainer();
         String defaultHost = engine.getDefaultHost();
 
@@ -302,10 +311,13 @@ public class MapperListener extends LifecycleMBeanBase
     private void registerHost(Host host) {
 
         String[] aliases = host.findAliases();
+
+        //代码中得到待注册Host所有的别名，将别名数组，Host名称和对象本身塞入addHost(String, String[], Object)中
         mapper.addHost(host.getName(), aliases, host);
 
         for (Container container : host.findChildren()) {
             if (container.getState().isAvailable()) {
+                //在Mapper添加新Host之后会遍历该Host下所有的children并开始registerContext(Context)
                 registerContext((Context) container);
             }
         }
@@ -381,7 +393,8 @@ public class MapperListener extends LifecycleMBeanBase
         WebResourceRoot resources = context.getResources();
         String[] welcomeFiles = context.findWelcomeFiles();
         List<WrapperMappingInfo> wrappers = new ArrayList<>();
-
+        // 将Context真正放入Mapper之前程序首先遍历了Context下所有的StandardWrapper，
+        // 并调用prepareWrapperMappingInfo(Context, Wrapper, List<WrapperMappingInfo>)
         for (Container container : context.findChildren()) {
             prepareWrapperMappingInfo(context, (Wrapper) container, wrappers);
 
@@ -390,6 +403,11 @@ public class MapperListener extends LifecycleMBeanBase
                         container.getName(), contextPath, service));
             }
         }
+
+        // 最后将Host、Context、WrapperMappingInfo集合等信息传入addContextVersion方法中，
+        // 虽然我能理解这个方法为什么要传递这么多参数，可能是因为添加的ContextVersion对象属
+        // 于承上启下的中间对象，既作为Context中的一个版本对象，也要处理下属的Wrapper对象间
+        // 关系，但是还是觉得传递这么多参数对于一个方法而言略多，
 
         mapper.addContextVersion(host.getName(), host, contextPath,
                 context.getWebappVersion(), context, welcomeFiles, resources,
@@ -460,10 +478,27 @@ public class MapperListener extends LifecycleMBeanBase
      * Populate <code>wrappers</code> list with information for registration of
      * mappings for this wrapper in this context.
      */
+
+    //解析web.xml的规则，文件中就包含对于<servlet-mapping>标签的处理，当解析到该标签时会
+    // 调用WebXml的addServletMapping(String, String)，方法的两个参数对应了<servlet-mapping>
+    // 两个子标签<url-pattern>和<servlet-name>的值，所有的<servlet-mapping>标签解析后都会放在
+    // Map<String,String> servletMappings集合中。而在StandardContext启动的流程中会发送
+    // CONFIGURE_START_EVENT给ContextConfig，进而产生
+    // configureStart()
+    // -->webConfig()
+    // -->configureContext(Context)
+    // -->StandardContext.addServletMapping(String, String)
+    // 最终将WebXml中serlvetMappings的values（所有<servlet-mapping>下<url-pattern>的集合）
+    // 放入StandardWrapper的成员变量ArrayList<String> mappings中，该变量就对应下面的mappings数组。
+    // 之后遍历所有的<servlet-mapping>映射，如果servlet name为jsp并且<url-pattern>以通配符/*结束，
+    // 则认为该Servlet是专门处理jsp的Servlet，置标志位jspWildCard为true。最后将封装好的
+    // WrapperMappingInfo放入参数集合wrappers中
+
     private void prepareWrapperMappingInfo(Context context, Wrapper wrapper,
             List<WrapperMappingInfo> wrappers) {
         String wrapperName = wrapper.getName();
         boolean resourceOnly = context.isResourceOnlyServlet(wrapperName);
+        //这里
         String[] mappings = wrapper.findMappings();
         for (String mapping : mappings) {
             boolean jspWildCard = (wrapperName.equals("jsp")

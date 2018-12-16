@@ -79,7 +79,12 @@ public abstract class AbstractProcessor extends AbstractProcessorLight implement
     }
 
 
+    // 创建request和response对象，并且建立了两者的关联，但是这一对请求响应仅仅是处理过程中第一对请求响应，我称之为
+    // 第一层次的请求响应，request中使用一个个MessageBytes对象将请求头中各个部分进行分门别类的保存，而request
+    // 和response中各自引用的输入、输出流buffer就作为了socket与对象之间的数据传输的纽带，我们再来看看
+    // AbstractProcessor的实现类Http11Processor的构造方法
     protected AbstractProcessor(Adapter adapter, Request coyoteRequest, Response coyoteResponse) {
+
         this.adapter = adapter;
         asyncStateMachine = new AsyncStateMachine(this);
         request = coyoteRequest;

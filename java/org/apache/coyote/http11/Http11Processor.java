@@ -151,12 +151,13 @@ public class Http11Processor extends AbstractProcessor {
      * @param adapter
      */
     public Http11Processor(AbstractHttp11Protocol<?> protocol, Adapter adapter) {
+        //进入这里
         super(adapter);
         this.protocol = protocol;
 
         httpParser = new HttpParser(protocol.getRelaxedPathChars(),
                 protocol.getRelaxedQueryChars());
-
+        //第一个参数设置了最大Http请求头大小为8M
         inputBuffer = new Http11InputBuffer(request, protocol.getMaxHttpHeaderSize(),
                 protocol.getRejectIllegalHeaderName(), httpParser);
         request.setInputBuffer(inputBuffer);
@@ -165,6 +166,7 @@ public class Http11Processor extends AbstractProcessor {
         response.setOutputBuffer(outputBuffer);
 
         // Create and add the identity filters.
+        //设置了默认情况下请求体最大大小为20M
         inputBuffer.addFilter(new IdentityInputFilter(protocol.getMaxSwallowSize()));
         outputBuffer.addFilter(new IdentityOutputFilter());
 

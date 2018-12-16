@@ -758,7 +758,8 @@ public abstract class AbstractProtocol<S> implements ProtocolHandler,
             }
 
             S socket = wrapper.getSocket();
-
+            //SocketWrapper从类型为ConcurrentHashMap的缓存中查找是否有对应SocketWrapper的Processor，
+            // 如果从缓存池和可循环利用的recycledProcessors中都没有合适的处理器，就会调用createProcessor()创建
             Processor processor = connections.get(socket);
             if (getLog().isDebugEnabled()) {
                 getLog().debug(sm.getString("abstractConnectionHandler.connectionsGet",
@@ -831,6 +832,7 @@ public abstract class AbstractProtocol<S> implements ProtocolHandler,
                     }
                 }
                 if (processor == null) {
+                    //这里创建
                     processor = getProtocol().createProcessor();
                     register(processor);
                 }
