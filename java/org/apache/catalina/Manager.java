@@ -37,6 +37,18 @@ import java.io.IOException;
  *
  * @author Craig R. McClanahan
  */
+
+// ================这个也很重要，要考试的=================================================
+// 其中 Context 对应一个 webapp 应用，每个 webapp 有多个 HttpSessionListener， 并且每个应用的
+// session 是独立管理的，而 session 的创建、销毁由 Manager 组件完成，它内部维护了 N 个 Session
+// 实例对象。在前面的文章中，我们分析了 Context 组件，它的默认实现是 StandardContext，它与 Manager
+// 是一对一的关系，Manager 创建、销毁会话时，需要借助 StandardContext 获取 HttpSessionListener
+// 列表并进行事件通知，而 StandardContext 的后台线程会对 Manager 进行过期 Session 的清理工作
+
+// 它提供了 Context、org.apache.catalina.SessionIdGenerator 的 getter/setter 接口，以及创建、
+// 添加、移除、查找、遍历 Session 的 API 接口，此外还提供了 Session 持久化的接口（load/unload）
+// 用于加载/卸载会话信息，当然持久化要看不同的实现类
+
 public interface Manager {
 
     // ------------------------------------------------------------- Properties

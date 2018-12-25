@@ -16,49 +16,22 @@
  */
 package org.apache.catalina.session;
 
-import java.beans.PropertyChangeSupport;
-import java.io.IOException;
-import java.io.NotSerializableException;
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
-import java.io.Serializable;
-import java.io.WriteAbortedException;
-import java.security.AccessController;
-import java.security.Principal;
-import java.security.PrivilegedAction;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Enumeration;
-import java.util.HashSet;
-import java.util.Hashtable;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.atomic.AtomicInteger;
-
-import javax.servlet.ServletContext;
-import javax.servlet.http.HttpSession;
-import javax.servlet.http.HttpSessionActivationListener;
-import javax.servlet.http.HttpSessionAttributeListener;
-import javax.servlet.http.HttpSessionBindingEvent;
-import javax.servlet.http.HttpSessionBindingListener;
-import javax.servlet.http.HttpSessionEvent;
-import javax.servlet.http.HttpSessionIdListener;
-import javax.servlet.http.HttpSessionListener;
-
-import org.apache.catalina.Context;
-import org.apache.catalina.Globals;
-import org.apache.catalina.Manager;
-import org.apache.catalina.Session;
-import org.apache.catalina.SessionEvent;
-import org.apache.catalina.SessionListener;
-import org.apache.catalina.TomcatPrincipal;
+import org.apache.catalina.*;
 import org.apache.catalina.security.SecurityUtil;
 import org.apache.tomcat.util.ExceptionUtils;
 import org.apache.tomcat.util.res.StringManager;
+
+import javax.servlet.ServletContext;
+import javax.servlet.http.*;
+import java.beans.PropertyChangeSupport;
+import java.io.*;
+import java.security.AccessController;
+import java.security.Principal;
+import java.security.PrivilegedAction;
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Standard implementation of the <b>Session</b> interface.  This object is
@@ -79,6 +52,15 @@ import org.apache.tomcat.util.res.StringManager;
  * @author Sean Legassick
  * @author <a href="mailto:jon@latchkey.com">Jon S. Stevens</a>
  */
+
+// 在 tomcat 中是可以限制 session 数量的，如果需要限制，请指定 Manager 的 maxActiveSessions 参数，
+// 默认不做限制，不建议进行设置，但是如果存在恶意攻击，每次请求不携带 Cookie 就有可能会频繁创建 Session，
+// 导致 Session 对象爆满最终出现 OOM。另外 sessionId 采用随机算法生成，并且每次生成都会判断当前是否已
+// 经存在该 id，从而避免 sessionId 重复。而 StandardManager 是使用 ConcurrentHashMap 存储 session
+// 对象的，sessionId 作为 key，org.apache.catalina.Session 作为 value。此外，值得注意的是 StandardManager
+// 创建的是 tomcat 的 org.apache.catalina.session.StandardSession，同时他也实现了 servlet 的 HttpSession，
+// 但是为了安全起见，tomcat 并不会把这个 StandardSession 直接交给应用程序，因此需要调用
+// org.apache.catalina.Session#getSession() 获取 HttpSession。
 public class StandardSession implements HttpSession, Session, Serializable {
 
     private static final long serialVersionUID = 1L;
@@ -173,6 +155,8 @@ public class StandardSession implements HttpSession, Session, Serializable {
      * The facade associated with this session.  NOTE:  This value is not
      * included in the serialized version of this object.
      */
+
+    //HttpSession 的外观模式，应用程序拿到的是该对象
     protected transient StandardSessionFacade facade = null;
 
 
@@ -185,12 +169,15 @@ public class StandardSession implements HttpSession, Session, Serializable {
     /**
      * The last accessed time for this Session.
      */
+
+    //上一次访问的时间，用于计算 Session 的过期时间
     protected volatile long lastAccessedTime = creationTime;
 
 
     /**
      * The session event listeners for this Session.
      */
+    //这是 tomcat 的 SessionListener，并不是 servlet 的 HttpSessionListener
     protected transient ArrayList<SessionListener> listeners = new ArrayList<>();
 
 
@@ -205,6 +192,7 @@ public class StandardSession implements HttpSession, Session, Serializable {
      * the servlet container may invalidate this session.  A negative time
      * indicates that the session should never time out.
      */
+    //Session 的最大存活时间，如果超过这个时间没有请求，Session 就会被清理、
     protected volatile int maxInactiveInterval = -1;
 
 
@@ -345,6 +333,9 @@ public class StandardSession implements HttpSession, Session, Serializable {
     /**
      * {@inheritDoc}
      */
+
+    // 似乎没有看到关于 HttpSessionListener 的创建通知。原来，在给 Session 设置 id
+    // 的时候会进行事件通知，和 Session 的销毁一样，也是非常的隐晦
     @Override
     public void setId(String id, boolean notify) {
 
@@ -357,6 +348,7 @@ public class StandardSession implements HttpSession, Session, Serializable {
             manager.add(this);
 
         if (notify) {
+            //这里
             tellNew();
         }
     }
@@ -366,6 +358,7 @@ public class StandardSession implements HttpSession, Session, Serializable {
      * Inform the listeners about the new session.
      *
      */
+    //// 获取 Context 内部的 LifecycleListener，并判断是否为 HttpSessionListener
     public void tellNew() {
 
         // Notify interested session event listeners
@@ -386,6 +379,7 @@ public class StandardSession implements HttpSession, Session, Serializable {
                     context.fireContainerEvent("beforeSessionCreated",
                             listener);
                     listener.sessionCreated(event);
+                    //// 通知 Container 容器
                     context.fireContainerEvent("afterSessionCreated", listener);
                 } catch (Throwable t) {
                     ExceptionUtils.handleThrowable(t);
@@ -638,6 +632,9 @@ public class StandardSession implements HttpSession, Session, Serializable {
     /**
      * Return the <code>isValid</code> flag for this session.
      */
+
+    //在 StandardSession#isValid() 方法中，如果 now - thisAccessedTime >= maxInactiveInterval
+    // 则判定当前 Session 过期了，而这个 thisAccessedTime 参数在每次访问都会进行更新
     @Override
     public boolean isValid() {
 
@@ -656,6 +653,7 @@ public class StandardSession implements HttpSession, Session, Serializable {
         if (maxInactiveInterval > 0) {
             int timeIdle = (int) (getIdleTimeInternal() / 1000L);
             if (timeIdle >= maxInactiveInterval) {
+                //进入
                 expire(true);
             }
         }
@@ -707,6 +705,7 @@ public class StandardSession implements HttpSession, Session, Serializable {
          * The servlet spec mandates to ignore request handling time
          * in lastAccessedTime.
          */
+        // 可以通过系统参数改变该值，默认为false
         if (LAST_ACCESS_AT_START) {
             this.lastAccessedTime = this.thisAccessedTime;
             this.thisAccessedTime = System.currentTimeMillis();
@@ -757,6 +756,7 @@ public class StandardSession implements HttpSession, Session, Serializable {
         // Check to see if session has already been invalidated.
         // Do not check expiring at this point as expire should not return until
         // isValid is false
+        // 1、校验 isValid 值，如果为 false 直接返回，说明已经被销毁了
         if (!isValid)
             return;
 
@@ -776,6 +776,7 @@ public class StandardSession implements HttpSession, Session, Serializable {
 
             // Notify interested application event listeners
             // FIXME - Assumes we call listeners in reverse order
+            // 2、双重校验 isValid 值，避免并发问题
             Context context = manager.getContext();
 
             // The call to expire() may not have been triggered by the webapp.
@@ -796,6 +797,8 @@ public class StandardSession implements HttpSession, Session, Serializable {
                             HttpSessionListener listener =
                                 (HttpSessionListener) listeners[j];
                             try {
+                                //3、判断是否为 HttpSessionListener，不是则继续循环
+                                //4、向容器发出Destroy事件，并调用 HttpSessionListener.sessionDestroyed() 进行通知
                                 context.fireContainerEvent("beforeSessionDestroyed",
                                         listener);
                                 listener.sessionDestroyed(event);
@@ -824,10 +827,12 @@ public class StandardSession implements HttpSession, Session, Serializable {
             }
 
             // Remove this session from our manager's active sessions
+            // 5、从 manager 中移除该  session
             manager.remove(this, true);
 
             // Notify interested session event listeners
             if (notify) {
+                //  6、向 tomcat 的 SessionListener 发出事件通知，非 HttpSessionListener
                 fireSessionEvent(Session.SESSION_DESTROYED_EVENT, null);
             }
 
@@ -852,6 +857,7 @@ public class StandardSession implements HttpSession, Session, Serializable {
             ClassLoader oldContextClassLoader = null;
             try {
                 oldContextClassLoader = context.bind(Globals.IS_SECURITY_ENABLED, null);
+                // 7、清除内部的 key/value，避免因为强引用而导致无法回收 Session 对象
                 for (int i = 0; i < keys.length; i++) {
                     removeAttributeInternal(keys[i], notify);
                 }

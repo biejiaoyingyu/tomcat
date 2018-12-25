@@ -16,71 +16,8 @@
  */
 package org.apache.catalina.connector;
 
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.StringReader;
-import java.io.UnsupportedEncodingException;
-import java.nio.charset.Charset;
-import java.nio.charset.StandardCharsets;
-import java.security.Principal;
-import java.text.SimpleDateFormat;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Enumeration;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Set;
-import java.util.TimeZone;
-import java.util.TreeMap;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicBoolean;
-
-import javax.naming.NamingException;
-import javax.security.auth.Subject;
-import javax.servlet.AsyncContext;
-import javax.servlet.DispatcherType;
-import javax.servlet.FilterChain;
-import javax.servlet.MultipartConfigElement;
-import javax.servlet.RequestDispatcher;
-import javax.servlet.ServletContext;
-import javax.servlet.ServletException;
-import javax.servlet.ServletInputStream;
-import javax.servlet.ServletRequest;
-import javax.servlet.ServletRequestAttributeEvent;
-import javax.servlet.ServletRequestAttributeListener;
-import javax.servlet.ServletResponse;
-import javax.servlet.SessionTrackingMode;
-import javax.servlet.http.Cookie;
-import javax.servlet.http.HttpServletMapping;
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletRequestWrapper;
-import javax.servlet.http.HttpServletResponse;
-import javax.servlet.http.HttpSession;
-import javax.servlet.http.HttpUpgradeHandler;
-import javax.servlet.http.Part;
-import javax.servlet.http.PushBuilder;
-
-import org.apache.catalina.Container;
-import org.apache.catalina.Context;
-import org.apache.catalina.Globals;
-import org.apache.catalina.Host;
-import org.apache.catalina.Manager;
-import org.apache.catalina.Realm;
-import org.apache.catalina.Session;
-import org.apache.catalina.TomcatPrincipal;
-import org.apache.catalina.Wrapper;
-import org.apache.catalina.core.ApplicationFilterChain;
-import org.apache.catalina.core.ApplicationMapping;
-import org.apache.catalina.core.ApplicationPart;
-import org.apache.catalina.core.ApplicationPushBuilder;
-import org.apache.catalina.core.ApplicationSessionCookieConfig;
-import org.apache.catalina.core.AsyncContextImpl;
+import org.apache.catalina.*;
+import org.apache.catalina.core.*;
 import org.apache.catalina.mapper.MappingData;
 import org.apache.catalina.util.ParameterMap;
 import org.apache.catalina.util.RequestUtil;
@@ -93,17 +30,9 @@ import org.apache.juli.logging.Log;
 import org.apache.juli.logging.LogFactory;
 import org.apache.tomcat.InstanceManager;
 import org.apache.tomcat.util.ExceptionUtils;
-import org.apache.tomcat.util.buf.B2CConverter;
-import org.apache.tomcat.util.buf.ByteChunk;
-import org.apache.tomcat.util.buf.MessageBytes;
-import org.apache.tomcat.util.buf.StringUtils;
-import org.apache.tomcat.util.buf.UDecoder;
-import org.apache.tomcat.util.http.CookieProcessor;
-import org.apache.tomcat.util.http.FastHttpDateFormat;
-import org.apache.tomcat.util.http.Parameters;
+import org.apache.tomcat.util.buf.*;
+import org.apache.tomcat.util.http.*;
 import org.apache.tomcat.util.http.Parameters.FailReason;
-import org.apache.tomcat.util.http.ServerCookie;
-import org.apache.tomcat.util.http.ServerCookies;
 import org.apache.tomcat.util.http.fileupload.FileItem;
 import org.apache.tomcat.util.http.fileupload.FileUploadBase;
 import org.apache.tomcat.util.http.fileupload.FileUploadBase.InvalidContentTypeException;
@@ -116,6 +45,19 @@ import org.apache.tomcat.util.net.SSLSupport;
 import org.apache.tomcat.util.res.StringManager;
 import org.ietf.jgss.GSSCredential;
 import org.ietf.jgss.GSSException;
+
+import javax.naming.NamingException;
+import javax.security.auth.Subject;
+import javax.servlet.*;
+import javax.servlet.http.*;
+import java.io.*;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
+import java.security.Principal;
+import java.text.SimpleDateFormat;
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Wrapper object for the Coyote request.
@@ -529,15 +471,18 @@ public class Request implements HttpServletRequest {
     }
 
 
+    //======这里
     protected void recycleSessionInfo() {
         if (session != null) {
             try {
+                // 更新时间戳
                 session.endAccess();
             } catch (Throwable t) {
                 ExceptionUtils.handleThrowable(t);
                 log.warn(sm.getString("coyoteRequest.sessionEndAccessFail"), t);
             }
         }
+        // 回收 Request 对象的内部信息
         session = null;
         requestedSessionCookie = false;
         requestedSessionId = null;
@@ -2934,6 +2879,7 @@ public class Request implements HttpServletRequest {
         }
 
         // Return the current session if it exists and is valid
+        //判断当前Request对象是否已经存在有效的Session信息，如果存在则返回此Session，否则进入下一步；
         if ((session != null) && !session.isValid()) {
             session = null;
         }
@@ -2942,10 +2888,12 @@ public class Request implements HttpServletRequest {
         }
 
         // Return the requested session if it exists and is valid
+        //获取Session管理器，比如StandardManager；
         Manager manager = context.getManager();
         if (manager == null) {
             return null;      // Sessions are not supported
         }
+        //从StandardManager的Session缓存中获取Session，如果有则返回此Session，否则进入下一步；
         if (requestedSessionId != null) {
             try {
                 session = manager.findSession(requestedSessionId);
@@ -2976,6 +2924,7 @@ public class Request implements HttpServletRequest {
 
         // Re-use session IDs provided by the client in very limited
         // circumstances.
+        // 获取sessionId
         String sessionId = getRequestedSessionId();
         if (requestedSessionSSL) {
             // If the session ID has been obtained from the SSL handshake then
@@ -3015,24 +2964,21 @@ public class Request implements HttpServletRequest {
         } else {
             sessionId = null;
         }
+        //创建Session；
         session = manager.createSession(sessionId);
 
         // Creating a new session cookie based on that session
-        if (session != null
-                && context.getServletContext()
-                        .getEffectiveSessionTrackingModes()
-                        .contains(SessionTrackingMode.COOKIE)) {
-            Cookie cookie =
-                ApplicationSessionCookieConfig.createSessionCookie(
-                        context, session.getIdInternal(), isSecure());
-
+        if (session != null &&
+                context.getServletContext().getEffectiveSessionTrackingModes().contains(SessionTrackingMode.COOKIE)) {
+            //创建保存Session ID的Cookie；
+            Cookie cookie = ApplicationSessionCookieConfig.createSessionCookie(context, session.getIdInternal(), isSecure());
             response.addSessionCookieInternal(cookie);
         }
 
         if (session == null) {
             return null;
         }
-
+        //通过调用Session的access方法更新Session的访问时间以及访问次数。
         session.access();
         return session;
     }
