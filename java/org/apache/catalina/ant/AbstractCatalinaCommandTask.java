@@ -16,6 +16,7 @@
  */
 package org.apache.catalina.ant;
 
+import java.io.ByteArrayInputStream;
 import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
 

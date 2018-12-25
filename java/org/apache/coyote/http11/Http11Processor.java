@@ -190,7 +190,6 @@ public class Http11Processor extends AbstractProcessor {
         pluggableFilterIndex = inputBuffer.getFilters().length;
     }
 
-
     /**
      * Specialized utility method: find a sequence of lower case bytes inside
      * a ByteChunk.
